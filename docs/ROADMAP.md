@@ -7,7 +7,7 @@ As propostas abaixo **não estão implementadas**.
 - [ ] Separar CSS e JavaScript em módulos testáveis.
 - [ ] Testar regras de peças livres, geração, embaralhamento e salvamento.
 - [ ] Garantir tabuleiros solucionáveis com algoritmo verificável.
-- [ ] Adaptar escala e posicionamento a telas pequenas.
+- [x] Adaptar escala e posicionamento do tabuleiro a telas pequenas (ajuste dinâmico inicial; testes visuais ainda pendentes).
 - [ ] Validar integralmente dados recuperados de localStorage.
 - [ ] Evitar callbacks atrasados alterarem fases posteriores.
 
