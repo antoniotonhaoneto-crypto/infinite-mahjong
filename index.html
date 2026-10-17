@@ -312,6 +312,8 @@ class InfiniteMahjong {
     this.floatingTexts = [];
 
     this.combo = 0;
+    this.gameOverPending = false;
+    this.boardGeneration = 0;
     this.comboTimer = 0;
     this.comboMaxTime = 4500;
     this.lastFrameTime = performance.now();
@@ -512,6 +514,8 @@ class InfiniteMahjong {
   }
 
   startLevel(lvl) {
+    this.boardGeneration++;
+    this.gameOverPending = false;
     this.level = lvl;
     this.selectedTile = null;
     this.hintPair = [];
@@ -642,6 +646,7 @@ class InfiniteMahjong {
   }
 
   shuffleBoard(isPenalty = true) {
+    if (this.gameOverPending) return;
     const remaining = this.tiles.filter(t => !t.removed);
     if (remaining.length === 0) return;
 
@@ -695,6 +700,7 @@ class InfiniteMahjong {
   }
 
   showHint() {
+    if (this.gameOverPending) return;
     const pairs = this.getAvailablePairs();
     if (pairs.length > 0) {
       this.score = Math.max(0, this.score - 20);
@@ -745,11 +751,23 @@ class InfiniteMahjong {
       return;
     }
 
-    if (pairs.length === 0 && remainingTiles > 0) {
+    if (pairs.length === 0 && remainingTiles > 0 && !this.gameOverPending) {
+      this.gameOverPending = true;
+      const generation = this.boardGeneration;
+      const penalty = 50;
+      const lost = Math.min(this.score, penalty);
+      this.score -= lost;
+      this.resetCombo();
+      this.sound.playError();
+      document.getElementById('ui-score').textContent = this.score;
+      this.saveGameState();
+      this.showToast(`💀 Você perdeu! Sem movimentos. -${lost} pontos. Nova mesa!`, true);
+
       setTimeout(() => {
-        this.showToast('Sem movimentos! Reorganizando...', true);
-        this.shuffleBoard(false);
-      }, 600);
+        if (generation !== this.boardGeneration || !this.gameOverPending) return;
+        // Retoma a mesma fase com uma mesa inteiramente nova.
+        this.startLevel(this.level);
+      }, 2200);
     }
   }
 
@@ -762,6 +780,7 @@ class InfiniteMahjong {
   }
 
   handleClick(e) {
+    if (this.gameOverPending) return;
     const rect = this.canvas.getBoundingClientRect();
     const mx = e.clientX - rect.left;
     const my = e.clientY - rect.top;
