@@ -23,7 +23,7 @@ Uma peça precisa estar presente, sem bloqueio imediatamente acima, e ter pelo m
 - Dica: custa 20 pontos (mínimo 0).
 - Embaralhar: custa 50 pontos (mínimo 0).
 - Pular fase: sem penalidade atualmente.
-- Reorganização automática sem movimentos: gratuita.
+- Sem movimentos disponíveis: derrota, desconto de até 50 pontos (sem saldo negativo) e geração automática de uma mesa totalmente nova na mesma fase, após o aviso.
 
 ## Salvamento
 
