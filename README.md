@@ -53,3 +53,14 @@ A versão inicial preserva o arquivo HTML recebido, sem refatorações ou mudan�
 ## Licença
 
 **Não definida.** Antes de distribuir ou aceitar contribuições externas, escolha uma licença e confirme a titularidade e os direitos sobre o código e os elementos visuais.
+## Instalar como aplicativo (PWA)
+
+O jogo oferece um manifesto e um Service Worker que coloca os arquivos essenciais em cache no primeiro acesso online. Depois de carregado, pode abrir sem internet. O progresso continua salvo em `localStorage` no dispositivo.
+
+- **Android (Chrome):** abra o site via HTTPS, menu ⋮ > *Instalar app* ou *Adicionar à tela inicial* (se disponível).
+- **iPhone/iPad (Safari):** abra o site, use *Compartilhar* > *Adicionar à Tela de Início*.
+- **Computador (Chrome/Edge):** abra o site e use o ícone *Instalar* na barra de endereços ou no menu do navegador.
+
+A instalação depende da compatibilidade do navegador e dos ícones disponíveis. Esta versão usa ícone vetorial SVG; alguns navegadores podem exigir PNG nos tamanhos 192 e 512 px. Não há sincronização de progresso entre aparelhos. Apagar dados do site pode apagar o progresso.
+
+**Importante:** para uso como PWA, sirva o site por HTTPS (como GitHub Pages) ou localhost; abrir `index.html` diretamente via `file://` não permite Service Worker.
