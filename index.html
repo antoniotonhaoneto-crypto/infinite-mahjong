@@ -160,6 +160,13 @@
       .controls { gap: 5px; }
       button { padding: 7px 8px; font-size: 0.75rem; }
     }
+    #install-overlay { position: fixed; inset: 0; background: rgba(2,6,23,.78); z-index: 100; display: none; align-items: center; justify-content: center; padding: 16px; }
+    #install-overlay.visible { display: flex; }
+    #install-dialog { max-width: 410px; width: 100%; border-radius: 18px; background: #1e293b; border: 1px solid #475569; padding: 24px; box-shadow: 0 20px 55px #0008; }
+    #install-dialog h2 { margin-bottom: 12px; }
+    #install-dialog p { line-height: 1.5; margin-bottom: 14px; color: #e2e8f0; }
+    #install-actions { display: flex; flex-wrap: wrap; gap: 9px; }
+    #install-help { display: none; }
     #toast.show { transform: translateX(-50%) translateY(0); }
     #toast.warn { background: #f59e0b; color: #451a03; }
   </style>
@@ -176,6 +183,7 @@
       <div id="save-indicator">💾 Salvo</div>
     </div>
     <div class="controls">
+      <button id="install-button" class="primary" type="button" hidden>📲 Instalar jogo</button>
       <button onclick="game.showHint()">💡 Dica (-20)</button>
       <button onclick="game.shuffleBoard()">🔀 Embaralhar (-50)</button>
       <button class="primary" onclick="game.nextLevel()">⏭️ Pular Fase</button>
@@ -183,6 +191,17 @@
     </div>
   </header>
 
+  <div id="install-overlay" role="presentation">
+    <div id="install-dialog" role="dialog" aria-modal="true" aria-labelledby="install-title">
+      <h2 id="install-title">📲 Instale o Mahjong</h2>
+      <p>Jogue direto da tela inicial, inclusive sem internet depois do primeiro carregamento.</p>
+      <p id="install-help"></p>
+      <div id="install-actions">
+        <button id="install-confirm" class="primary" type="button">Instalar agora</button>
+        <button id="install-close" type="button">Agora não</button>
+      </div>
+    </div>
+  </div>
   <div id="combo-bar-wrapper">
     <div id="combo-bar-fill"></div>
   </div>
@@ -984,6 +1003,68 @@ class InfiniteMahjong {
 }
 
 const game = new InfiniteMahjong();
+
+// A instalação nativa só pode ser disparada após o navegador emitir beforeinstallprompt.
+// No iOS/Safari, o usuário deve usar o menu Compartilhar > Adicionar à Tela de Início.
+(() => {
+  let deferredPrompt = null;
+  const overlay = document.getElementById('install-overlay');
+  const openButton = document.getElementById('install-button');
+  const confirmButton = document.getElementById('install-confirm');
+  const closeButton = document.getElementById('install-close');
+  const help = document.getElementById('install-help');
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const installed = () => window.matchMedia('(display-mode: standalone)').matches ||
+    navigator.standalone === true;
+  const dismissed = () => sessionStorage.getItem('mahjong-install-dismissed') === '1';
+
+  function openDialog() {
+    if (installed()) return;
+    overlay.classList.add('visible');
+    if (deferredPrompt) {
+      help.style.display = 'none';
+      confirmButton.hidden = false;
+    } else {
+      help.style.display = 'block';
+      confirmButton.hidden = true;
+      help.textContent = isIOS
+        ? 'No Safari, toque em Compartilhar e escolha Adicionar à Tela de Início.'
+        : 'Abra o menu do navegador e escolha Instalar aplicativo ou Adicionar à tela inicial. A instalação direta depende do navegador.';
+    }
+  }
+  function hideDialog() {
+    overlay.classList.remove('visible');
+    sessionStorage.setItem('mahjong-install-dismissed', '1');
+  }
+  openButton.addEventListener('click', openDialog);
+  closeButton.addEventListener('click', hideDialog);
+  confirmButton.addEventListener('click', async () => {
+    if (!deferredPrompt) return;
+    const prompt = deferredPrompt;
+    deferredPrompt = null;
+    hideDialog();
+    await prompt.prompt();
+    try { await prompt.userChoice; } catch (error) { console.warn(error); }
+  });
+  window.addEventListener('beforeinstallprompt', event => {
+    event.preventDefault();
+    deferredPrompt = event;
+    openButton.hidden = false;
+    if (!dismissed() && !installed()) openDialog();
+  });
+  window.addEventListener('appinstalled', () => {
+    deferredPrompt = null;
+    overlay.classList.remove('visible');
+    openButton.hidden = true;
+  });
+  if (!installed()) {
+    openButton.hidden = false;
+    if (isIOS && !dismissed()) {
+      window.addEventListener('load', () => setTimeout(openDialog, 1200), { once: true });
+    }
+  }
+})();
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js').catch(error => {
