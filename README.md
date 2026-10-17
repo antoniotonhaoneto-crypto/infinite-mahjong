@@ -64,3 +64,7 @@ O jogo oferece um manifesto e um Service Worker que coloca os arquivos essenciai
 A instalação depende da compatibilidade do navegador e dos ícones disponíveis. Esta versão usa ícone vetorial SVG; alguns navegadores podem exigir PNG nos tamanhos 192 e 512 px. Não há sincronização de progresso entre aparelhos. Apagar dados do site pode apagar o progresso.
 
 **Importante:** para uso como PWA, sirva o site por HTTPS (como GitHub Pages) ou localhost; abrir `index.html` diretamente via `file://` não permite Service Worker.
+
+### Convite de instalação
+
+Ao abrir o site em um navegador compatível com o evento `beforeinstallprompt`, aparece uma janela de convite à instalação. Há também um botão **Instalar jogo** na interface. Em iPhone/iPad, a janela explica como usar **Compartilhar > Adicionar à Tela de Início**. O navegador controla se a instalação nativa está disponível; o site não consegue forçá-la. Fechar o convite o dispensa na sessão atual.
