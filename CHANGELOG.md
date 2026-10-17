@@ -10,3 +10,9 @@
 - Redimensionamento e centralização automática do tabuleiro em função da área disponível.
 - Ajuste dos tamanhos das peças e símbolos após mudança de janela ou orientação.
 - Melhorias de layout para telas pequenas e unidades de altura dinâmica.
+
+## Derrota por falta de movimentos — 2026-10-17
+
+- O jogo anuncia derrota quando não há pares livres.
+- Desconta até 50 pontos, sem tornar a pontuação negativa.
+- Gera nova mesa na mesma fase após 2,2 segundos, sem embaralhamento gratuito.
