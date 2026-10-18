@@ -1,4 +1,6 @@
-// Catálogo de dados do jogo: conjuntos de símbolos, temas de mesa, estilos de peça, modos, layouts, power-ups e conquistas.
+// Catálogo de dados do jogo: conjuntos de símbolos, temas de mesa, estilos de peça, modos, layouts, modificadores de fase, power-ups e conquistas.
+
+export const WILDCARD_SYMBOL = '🃏';
 
 export const SYMBOL_SETS = {
   classic: {
@@ -188,14 +190,14 @@ export const GAME_MODES = {
     name: 'Modo Infinito',
     badge: 'Infinito',
     icon: '♾️',
-    desc: 'Fases infinitas progressivas, combos até x10 e ganho contínuo de moedas.'
+    desc: 'Fases evolutivas: a cada nível mudam os layouts, surgem peças especiais e eventos dinâmicos.'
   },
   daily: {
     id: 'daily',
     name: 'Desafio Diário',
     badge: 'Diário',
     icon: '📅',
-    desc: 'Tabuleiro único por dia (mesma semente para todos) com recompensa dobrada.'
+    desc: 'Tabuleiro único por dia (mesma semente para todos) com peças especiais e recompensa dobrada.'
   },
   time_attack: {
     id: 'time_attack',
@@ -216,9 +218,9 @@ export const GAME_MODES = {
 export const BOARD_LAYOUTS = {
   auto: {
     id: 'auto',
-    name: 'Automático (Variado)',
+    name: 'Progressivo (Muda a cada Fase)',
     icon: '🎲',
-    desc: 'Alterna automaticamente as formações clássicas a cada nova fase.'
+    desc: 'Evolui automaticamente entre as 8 formações conforme as fases avançam.'
   },
   turtle: {
     id: 'turtle',
@@ -249,6 +251,69 @@ export const BOARD_LAYOUTS = {
     name: 'Asas de Borboleta',
     icon: '🦋',
     desc: 'Duas grandes asas simétricas unidas por uma ponte delicada.'
+  },
+  bridges: {
+    id: 'bridges',
+    name: 'Pontes Gêmeas',
+    icon: '🌉',
+    desc: 'Duas ilhas altas conectadas por passarelas suspensas.'
+  },
+  arena: {
+    id: 'arena',
+    name: 'Coliseu Imperial',
+    icon: '🏟️',
+    desc: 'Anel circular elevado ao redor de um santuário interno.'
+  },
+  hourglass: {
+    id: 'hourglass',
+    name: 'Ampulheta do Tempo',
+    icon: '⏳',
+    desc: 'Duas câmaras amplas que se afunilam no nexo central.'
+  }
+};
+
+export const STAGE_MODIFIERS = {
+  classic: {
+    id: 'classic',
+    name: 'Harmonia Clássica',
+    icon: '🎋',
+    desc: 'Regras tradicionais puras de Mahjong Solitaire.',
+    bonusCoins: 0
+  },
+  gold_rush: {
+    id: 'gold_rush',
+    name: 'Corrida do Ouro',
+    icon: '🃏',
+    desc: 'Peças Coringa (combinam com tudo) e Peças de Tesouro (+🪙) surgem na mesa!',
+    bonusCoins: 15
+  },
+  mist: {
+    id: 'mist',
+    name: 'Névoa do Oráculo',
+    icon: '🔮',
+    desc: 'Peças Mistério (❓) ocultam seu símbolo até ficarem livres ou sob luz da Tocha.',
+    bonusCoins: 20
+  },
+  chains: {
+    id: 'chains',
+    name: 'Correntes Imperiais',
+    icon: '⛓️',
+    desc: 'Peças Acorrentadas precisam que pares próximos sejam combinados para quebrar o cadeado!',
+    bonusCoins: 25
+  },
+  blitz: {
+    id: 'blitz',
+    name: 'Relâmpago Imperial',
+    icon: '⚡',
+    desc: 'Meta de tempo bônus! Limpe a mesa antes do relógio bônus zerar para ganhar baú extra.',
+    bonusCoins: 30
+  },
+  boss: {
+    id: 'boss',
+    name: 'Desafio do Dragão (Chefe)',
+    icon: '🐉',
+    desc: 'Fase Chefe! Combina Correntes, Peças Mistério, Coringas Dourados e Recompensa Tripla!',
+    bonusCoins: 50
   }
 };
 
@@ -278,7 +343,7 @@ export const POWERUPS = {
     shortcut: 'T',
     coinCost: 25,
     initialCharges: 2,
-    desc: 'Ilumina todas as peças livres e escurece as bloqueadas por 12s.'
+    desc: 'Ilumina peças livres, revela Peças Mistério (❓) e escurece bloqueadas por 12s.'
   },
   freeze: {
     id: 'freeze',
@@ -287,7 +352,7 @@ export const POWERUPS = {
     shortcut: 'F',
     coinCost: 25,
     initialCharges: 2,
-    desc: 'Congela a barra de tempo do Combo por 15 segundos.'
+    desc: 'Congela a barra de tempo do Combo e da Meta Blitz por 15 segundos.'
   },
   magnet: {
     id: 'magnet',
@@ -305,7 +370,7 @@ export const POWERUPS = {
     shortcut: 'B',
     coinCost: 50,
     initialCharges: 1,
-    desc: 'Detona até 3 pares livres em cadeia com bônus de pontos.'
+    desc: 'Quebra cadeados e detona até 3 pares livres em cadeia.'
   },
   shuffle: {
     id: 'shuffle',
@@ -333,8 +398,11 @@ export const ACHIEVEMENTS = [
   { id: 'collector', icon: '🎨', title: 'Colecionador', desc: 'Desbloqueie 3 itens na Loja de Temas.', reward: 75 },
   { id: 'pairs_100', icon: '🎯', title: 'Centurião', desc: 'Combine 100 pares no total.', reward: 60 },
   { id: 'pairs_500', icon: '🏆', title: 'Grande Mestre', desc: 'Combine 500 pares no total.', reward: 150 },
-  { id: 'architect', icon: '🏯', title: 'Arquiteto Clássico', desc: 'Vença nos layouts Tartaruga, Dragão, Fortaleza e Pirâmide.', reward: 120 },
-  { id: 'tycoon', icon: '🪙', title: 'Tesouro Imperial', desc: 'Acumule um total histórico de 1.000 moedas ganhas.', reward: 120 }
+  { id: 'architect', icon: '🏯', title: 'Arquiteto Clássico', desc: 'Vença em 5 formatos diferentes de tabuleiro.', reward: 120 },
+  { id: 'tycoon', icon: '🪙', title: 'Tesouro Imperial', desc: 'Acumule um total histórico de 1.000 moedas ganhas.', reward: 120 },
+  { id: 'chain_breaker', icon: '⛓️', title: 'Quebra-Correntes', desc: 'Destranque 10 peças acorrentadas em partidas.', reward: 80 },
+  { id: 'wildcard_pro', icon: '🃏', title: 'Mestre do Coringa', desc: 'Combine 6 pares usando Peças Coringa.', reward: 75 },
+  { id: 'boss_slayer', icon: '🐉', title: 'Domador do Dragão', desc: 'Vença uma Fase Chefe (múltiplo de 5).', reward: 110 }
 ];
 
 export const PLAYER_RANKS = [
@@ -348,7 +416,6 @@ export const PLAYER_RANKS = [
 ];
 
 export function getPlayerLevelInfo(xp = 0) {
-  // Cada nível requer 150 * level XP acumulado
   let level = 1;
   let remaining = Math.max(0, Math.floor(xp));
   let needed = 150;
@@ -368,4 +435,3 @@ export function getPlayerLevelInfo(xp = 0) {
     rankTitle
   };
 }
-

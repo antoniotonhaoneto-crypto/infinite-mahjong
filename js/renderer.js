@@ -1,7 +1,7 @@
-// Motor de renderização em Canvas 2D: temas, skins de peças, efeitos de Tocha/Gelo, partículas, anéis de choque e animações.
+// Motor de renderização em Canvas 2D: temas, skins, peças especiais (Coringa, Mistério, Acorrentada, Bônus), partículas e ondas de choque.
 
-import { TABLE_THEMES, TILE_SKINS } from './data.js';
-import { isTileFree } from './board.js';
+import { TABLE_THEMES, TILE_SKINS, WILDCARD_SYMBOL } from './data.js';
+import { isTileFree, canTilesMatch } from './board.js';
 
 export class BoardRenderer {
   constructor(canvas) {
@@ -44,7 +44,6 @@ export class BoardRenderer {
     }
     ctx.restore();
 
-    // Shake de tela (ex: Bomba)
     ctx.save();
     if (game.screenShake > 0) {
       const mag = game.screenShake * 0.6;
@@ -57,24 +56,23 @@ export class BoardRenderer {
     const torchActive = game.torchTimer > 0;
     const pulse = 0.5 + 0.5 * Math.sin(now * 0.007);
 
-    // Conta quantas peças livres existem por símbolo quando a Tocha está ativa
-    const freeSymbolCounts = {};
-    if (torchActive) {
-      for (const t of game.tiles) {
-        if (!t.removed && isTileFree(t, game.tiles)) {
-          freeSymbolCounts[t.symbol] = (freeSymbolCounts[t.symbol] || 0) + 1;
-        }
-      }
-    }
+    // Peças livres desbloqueadas para destaque da Tocha
+    const freeUnlocked = game.tiles.filter(t => !t.removed && !t.locked && isTileFree(t, game.tiles));
 
     for (const tile of game.tiles) {
       if (tile.removed) continue;
 
       const isFree = isTileFree(tile, game.tiles);
+      const isSelectable = isFree && !tile.locked;
       const isSelected = game.selectedTile && game.selectedTile.id === tile.id;
       const isHovered = game.hoveredTile && game.hoveredTile.id === tile.id;
       const isHinted = game.hintPair.some(h => h.id === tile.id);
-      const hasMatchNow = torchActive && isFree && (freeSymbolCounts[tile.symbol] >= 2);
+      const isWild = tile.symbol === WILDCARD_SYMBOL || tile.special === 'wildcard';
+      const isMysteryHidden = Boolean(tile.mystery && !isFree && !torchActive);
+
+      const hasMatchNow = torchActive && isSelectable && freeUnlocked.some(
+        other => other.id !== tile.id && canTilesMatch(tile, other)
+      );
 
       let shakeOffset = 0;
       if (tile.shake > 0) {
@@ -82,7 +80,7 @@ export class BoardRenderer {
         tile.shake = Math.max(0, tile.shake - 1);
       }
 
-      const lift = (isSelected ? -4 : (isHovered && isFree ? -2.5 : 0));
+      const lift = (isSelected ? -4 : (isHovered && isSelectable ? -2.5 : 0));
       const r = game.getTileScreenRect(tile);
       const x = r.x + shakeOffset;
       const y = r.y + lift;
@@ -94,7 +92,9 @@ export class BoardRenderer {
       ctx.fill();
 
       // Lateral 3D da peça
-      ctx.fillStyle = isSelected ? skin.sideSelected : skin.sideColor;
+      ctx.fillStyle = isWild
+        ? '#b45309'
+        : (isSelected ? skin.sideSelected : skin.sideColor);
       this.drawRoundedRect(x + 3.5 * (r.w / 54), y + 4.5 * (r.h / 72), r.w, r.h, cornerRadius);
       ctx.fill();
 
@@ -103,7 +103,11 @@ export class BoardRenderer {
         ctx.fillStyle = skin.faceSelected;
       } else if (isHinted) {
         ctx.fillStyle = skin.faceHint;
-      } else if (isFree) {
+      } else if (isWild && isSelectable) {
+        ctx.fillStyle = '#fef3c7';
+      } else if (isMysteryHidden) {
+        ctx.fillStyle = '#312e81';
+      } else if (isSelectable) {
         ctx.fillStyle = skin.faceFree;
       } else {
         ctx.fillStyle = skin.faceBlocked;
@@ -119,10 +123,16 @@ export class BoardRenderer {
       } else if (isHinted) {
         ctx.lineWidth = 3;
         ctx.strokeStyle = '#10b981';
+      } else if (isWild) {
+        ctx.lineWidth = 2.5;
+        ctx.strokeStyle = `rgba(251, 191, 36, ${0.65 + pulse * 0.35})`;
+      } else if (tile.locked) {
+        ctx.lineWidth = 2.2;
+        ctx.strokeStyle = '#64748b';
       } else if (hasMatchNow) {
         ctx.lineWidth = 2.5;
         ctx.strokeStyle = `rgba(251, 191, 36, ${0.55 + pulse * 0.45})`;
-      } else if (isHovered && isFree) {
+      } else if (isHovered && isSelectable) {
         ctx.lineWidth = 2;
         ctx.strokeStyle = theme.accent;
       } else {
@@ -131,18 +141,43 @@ export class BoardRenderer {
       }
       ctx.stroke();
 
-      // Símbolo central
+      // Símbolo central (ou ❓ se for Peça Mistério oculta)
+      const displaySymbol = isMysteryHidden ? '❓' : tile.symbol;
       ctx.font = `${Math.max(8, 30 * (r.w / 54))}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.globalAlpha = isFree ? 1.0 : (torchActive ? 0.22 : 0.45);
-      ctx.fillText(tile.symbol, x + r.w / 2, y + r.h / 2 + 2);
+      ctx.globalAlpha = isSelectable ? 1.0 : (torchActive ? 0.3 : 0.48);
+      ctx.fillText(displaySymbol, x + r.w / 2, y + r.h / 2 + 2);
       ctx.globalAlpha = 1.0;
+
+      // Correntes metálicas sobre peças trancadas
+      if (tile.locked) {
+        ctx.save();
+        ctx.strokeStyle = 'rgba(71, 85, 105, 0.85)';
+        ctx.lineWidth = Math.max(2, 3 * (r.w / 54));
+        ctx.setLineDash([4, 3]);
+        ctx.beginPath();
+        ctx.moveTo(x + 4, y + 4);
+        ctx.lineTo(x + r.w - 4, y + r.h - 4);
+        ctx.moveTo(x + r.w - 4, y + 4);
+        ctx.lineTo(x + 4, y + r.h - 4);
+        ctx.stroke();
+        ctx.restore();
+
+        ctx.font = `${Math.max(8, 13 * (r.w / 54))}px "Apple Color Emoji", "Segoe UI Emoji", sans-serif`;
+        ctx.fillText('⛓️', x + r.w - 11 * (r.w / 54), y + r.h - 11 * (r.h / 72));
+      }
+
+      // Emblema de Moeda Bônus
+      if (tile.bonus === 'coin' && !isMysteryHidden) {
+        ctx.font = `${Math.max(7, 11 * (r.w / 54))}px "Apple Color Emoji", "Segoe UI Emoji", sans-serif`;
+        ctx.fillText('🪙', x + 11 * (r.w / 54), y + r.h - 10 * (r.h / 72));
+      }
 
       // Indicador de camada (L2, L3...)
       if (tile.z > 0) {
-        ctx.fillStyle = isFree ? skin.textColor : '#64748b';
-        ctx.globalAlpha = isFree ? 0.72 : 0.45;
+        ctx.fillStyle = isSelectable ? skin.textColor : '#64748b';
+        ctx.globalAlpha = isSelectable ? 0.72 : 0.45;
         ctx.font = `bold ${Math.max(7, 10 * (r.w / 54))}px system-ui, sans-serif`;
         ctx.fillText(`L${tile.z + 1}`, x + r.w - 11 * (r.w / 54), y + 11 * (r.h / 72));
         ctx.globalAlpha = 1.0;
@@ -157,7 +192,7 @@ export class BoardRenderer {
       }
     }
 
-    // Anéis de onda de choque ao combinar pares
+    // Anéis de onda de choque
     for (let i = game.rings.length - 1; i >= 0; i--) {
       const ring = game.rings[i];
       ring.radius += dt * 0.14;
@@ -181,7 +216,7 @@ export class BoardRenderer {
       const p = game.particles[i];
       p.x += p.vx;
       p.y += p.vy;
-      p.vy += 0.08; // leve gravidade
+      p.vy += 0.08;
       p.life -= 0.035;
       if (p.life <= 0) {
         game.particles.splice(i, 1);
@@ -215,7 +250,6 @@ export class BoardRenderer {
       ctx.restore();
     }
 
-    // Efeito de borda congelada quando Freeze está ativo
     if (game.freezeTimer > 0) {
       ctx.save();
       ctx.strokeStyle = 'rgba(56, 189, 248, 0.45)';
@@ -227,4 +261,3 @@ export class BoardRenderer {
     ctx.restore();
   }
 }
-

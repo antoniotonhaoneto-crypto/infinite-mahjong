@@ -1,11 +1,12 @@
-// Controlador principal do Infinite Mahjong: ciclo de jogo, modos, power-ups, conquistas, zoom/pan e eventos.
+// Controlador principal do Infinite Mahjong: fases progressivas, modificadores dinâmicos, peças especiais, power-ups e conquistas.
 
 import {
+  WILDCARD_SYMBOL,
   SYMBOL_SETS,
   TABLE_THEMES,
-  TILE_SKINS,
   GAME_MODES,
   BOARD_LAYOUTS,
+  STAGE_MODIFIERS,
   POWERUPS,
   ACHIEVEMENTS,
   getPlayerLevelInfo
@@ -14,7 +15,10 @@ import { getTodayKey, getYesterdayKey } from './prng.js';
 import { SoundManager } from './sound.js';
 import {
   resolveLayoutId,
+  resolveStageModifier,
   isTileFree,
+  isTileSelectable,
+  canTilesMatch,
   getAvailablePairs,
   sortTilesForRender,
   buildSolvableBoard,
@@ -42,6 +46,7 @@ export class InfiniteMahjong {
     this.level = 1;
     this.score = 0;
     this.currentLayoutId = 'turtle';
+    this.currentModifierId = 'classic';
     this.currentSeed = '1';
 
     this.tiles = [];
@@ -60,16 +65,15 @@ export class InfiniteMahjong {
     this.freezeTimer = 0;
     this.screenShake = 0;
 
-    // Cronômetros de fase e Time Attack
     this.levelStartTime = performance.now();
     this.timeAttackRemainingMs = 150000;
+    this.blitzRemainingMs = 0;
     this.usedAssistInLevel = false;
 
     this.gameOverPending = false;
     this.boardGeneration = 0;
     this.lastFrameTime = performance.now();
 
-    // Escala, Zoom e Pan
     this.tileW = 54;
     this.tileH = 72;
     this.depthOffset = 7;
@@ -247,6 +251,7 @@ export class InfiniteMahjong {
       this.level = saved.level;
       this.score = saved.score;
       this.currentLayoutId = saved.layoutId || resolveLayoutId(this.profile.selectedLayout, this.level);
+      this.currentModifierId = saved.modifierId || resolveStageModifier(this.level, mode);
       this.tiles = sortTilesForRender(saved.tiles);
       this.undoStack = [];
       this.selectedTile = null;
@@ -254,6 +259,8 @@ export class InfiniteMahjong {
       if (mode === 'time_attack') {
         this.timeAttackRemainingMs = saved.timeLeftMs || 150000;
       }
+      this.blitzRemainingMs = saved.blitzLeftMs || 0;
+      this.ensurePlayableState();
       this.fitBoard();
       this.updateUI(false);
       this.showToast(`${GAME_MODES[mode].name} restaurado na Fase ${this.level}!`);
@@ -293,13 +300,20 @@ export class InfiniteMahjong {
     let maxLayers = Math.min(6, 2 + Math.floor(this.level / 3));
 
     if (this.mode === 'daily') {
-      // Desafio Diário já começa com um tabuleiro denso e tático
       numPairs = Math.min(54, 24 + (this.level - 1) * 10);
       uniqueSymbols = Math.min(symbolsList.length, 16 + (this.level - 1) * 4);
       maxLayers = Math.min(5, 3 + Math.floor(this.level / 2));
     }
 
     this.currentLayoutId = resolveLayoutId(this.profile.selectedLayout, this.level);
+    this.currentModifierId = resolveStageModifier(this.level, this.mode);
+
+    if (this.currentModifierId === 'blitz' && this.mode !== 'time_attack') {
+      this.blitzRemainingMs = (60 + numPairs * 2) * 1000;
+    } else {
+      this.blitzRemainingMs = 0;
+    }
+
     const today = getTodayKey();
     this.currentSeed = customSeed
       ? String(customSeed)
@@ -312,7 +326,8 @@ export class InfiniteMahjong {
       symbols: symbolsList.slice(0, uniqueSymbols),
       maxLayers,
       seed: this.currentSeed,
-      layoutId: this.currentLayoutId
+      layoutId: this.currentLayoutId,
+      modifierId: this.currentModifierId
     });
 
     if (this.mode === 'infinite' && this.level > this.profile.stats.highestLevel) {
@@ -320,9 +335,69 @@ export class InfiniteMahjong {
       saveProfile(this.profile);
     }
 
+    const modInfo = STAGE_MODIFIERS[this.currentModifierId] || STAGE_MODIFIERS.classic;
+    const layInfo = BOARD_LAYOUTS[this.currentLayoutId] || BOARD_LAYOUTS.turtle;
+    if (this.level > 1) {
+      this.showToast(`Fase ${this.level}: ${layInfo.icon} ${layInfo.name} · ${modInfo.icon} ${modInfo.name}`);
+    }
+
     this.checkAchievements();
     this.fitBoard();
     this.updateUI(true);
+  }
+
+  revealNewlyFreeMysteries() {
+    const revealedIds = [];
+    for (const t of this.tiles) {
+      if (!t.removed && t.mystery && isTileFree(t, this.tiles)) {
+        t.mystery = false;
+        revealedIds.push(t.id);
+        const r = this.getTileScreenRect(t);
+        this.spawnRing(r.x + r.w / 2, r.y + r.h / 2, '#c084fc');
+      }
+    }
+    return revealedIds;
+  }
+
+  unlockNearbyChains(refTiles = [], maxToUnlock = 1) {
+    const lockedTiles = this.tiles.filter(t => !t.removed && t.locked);
+    if (lockedTiles.length === 0) return [];
+
+    // Prioriza peças acorrentadas que já estão livres no topo ou mais próximas das peças combinadas
+    lockedTiles.sort((a, b) => {
+      const aFree = isTileFree(a, this.tiles) ? 1 : 0;
+      const bFree = isTileFree(b, this.tiles) ? 1 : 0;
+      if (aFree !== bFree) return bFree - aFree;
+      if (b.z !== a.z) return b.z - a.z;
+      if (refTiles.length > 0) {
+        const distA = Math.abs(a.x - refTiles[0].x) + Math.abs(a.y - refTiles[0].y);
+        const distB = Math.abs(b.x - refTiles[0].x) + Math.abs(b.y - refTiles[0].y);
+        return distA - distB;
+      }
+      return 0;
+    });
+
+    const unlockedIds = [];
+    for (let i = 0; i < Math.min(maxToUnlock, lockedTiles.length); i++) {
+      const target = lockedTiles[i];
+      target.locked = false;
+      unlockedIds.push(target.id);
+      this.profile.stats.chainsBroken = (this.profile.stats.chainsBroken || 0) + 1;
+      const r = this.getTileScreenRect(target);
+      this.spawnRing(r.x + r.w / 2, r.y + r.h / 2, '#38bdf8');
+      this.spawnFloatingText(r.x + r.w / 2, r.y, '🔓 Destrancado!', '#38bdf8');
+    }
+    return unlockedIds;
+  }
+
+  ensurePlayableState() {
+    // Se não houver pares selecionáveis mas houver peças trancadas impedindo jogadas, solta correntes até liberar
+    let pairs = getAvailablePairs(this.tiles);
+    while (pairs.length === 0 && this.tiles.some(t => !t.removed && t.locked)) {
+      this.unlockNearbyChains([], 2);
+      pairs = getAvailablePairs(this.tiles);
+    }
+    this.revealNewlyFreeMysteries();
   }
 
   triggerCombo() {
@@ -334,7 +409,6 @@ export class InfiniteMahjong {
       this.profile.stats.bestCombo = this.combo;
     }
 
-    // Recompensa de carga extra ao atingir Combo x8
     if (this.combo === 8) {
       this.profile.powerups.magnet = (this.profile.powerups.magnet || 0) + 1;
       this.showToast('🔥 Combo x8! +1 Ímã de Par ganho!');
@@ -373,7 +447,9 @@ export class InfiniteMahjong {
       level: this.level,
       score: this.score,
       layoutId: this.currentLayoutId,
+      modifierId: this.currentModifierId,
       timeLeftMs: this.mode === 'time_attack' ? this.timeAttackRemainingMs : null,
+      blitzLeftMs: this.currentModifierId === 'blitz' ? this.blitzRemainingMs : null,
       dateKey: this.mode === 'daily' ? getTodayKey() : null,
       tiles: this.tiles.map(t => ({
         id: t.id,
@@ -381,6 +457,10 @@ export class InfiniteMahjong {
         y: t.y,
         z: t.z,
         symbol: t.symbol,
+        special: t.special || null,
+        locked: Boolean(t.locked),
+        mystery: Boolean(t.mystery),
+        bonus: t.bonus || null,
         removed: t.removed
       }))
     });
@@ -414,7 +494,6 @@ export class InfiniteMahjong {
     const cfg = POWERUPS[powerupId];
     if (!cfg) return false;
 
-    // No modo Zen, Desfazer, Dica e Embaralhar são livres
     if (this.mode === 'zen' && ['undo', 'hint', 'shuffle'].includes(powerupId)) {
       return true;
     }
@@ -432,7 +511,6 @@ export class InfiniteMahjong {
       return true;
     }
 
-    // Fallback clássico por pontos para dica e embaralhar
     if (powerupId === 'hint') {
       this.score = Math.max(0, this.score - 20);
       return true;
@@ -462,6 +540,19 @@ export class InfiniteMahjong {
       const t2 = this.tiles.find(t => t.id === last.id2);
       if (t1) t1.removed = false;
       if (t2) t2.removed = false;
+      if (last.promotedWildcardId !== null && last.promotedOriginalSymbol) {
+        const pw = this.tiles.find(t => t.id === last.promotedWildcardId);
+        if (pw) {
+          pw.symbol = last.promotedOriginalSymbol;
+          pw.special = null;
+        }
+      }
+      if (Array.isArray(last.unlockedIds)) {
+        for (const uid of last.unlockedIds) {
+          const ut = this.tiles.find(t => t.id === uid);
+          if (ut) ut.locked = true;
+        }
+      }
       this.selectedTile = null;
       this.hintPair = [];
       this.sound.playUndo();
@@ -506,13 +597,13 @@ export class InfiniteMahjong {
     }
 
     if (powerupId === 'magnet') {
+      this.ensurePlayableState();
       const pairs = getAvailablePairs(this.tiles);
       if (pairs.length === 0) {
         this.shuffleBoard(false);
         return;
       }
       if (!this.consumePowerupResource('magnet')) return;
-      // Prioriza o par da camada mais alta
       pairs.sort((a, b) => Math.max(b[0].z, b[1].z) - Math.max(a[0].z, a[1].z));
       const [t1, t2] = pairs[0];
       this.sound.playPowerup('magnet');
@@ -521,6 +612,7 @@ export class InfiniteMahjong {
     }
 
     if (powerupId === 'bomb') {
+      this.ensurePlayableState();
       let pairs = getAvailablePairs(this.tiles);
       if (pairs.length === 0) {
         this.shuffleBoard(false);
@@ -530,11 +622,14 @@ export class InfiniteMahjong {
       this.profile.stats.bombsUsed = (this.profile.stats.bombsUsed || 0) + 1;
       this.sound.playPowerup('bomb');
       this.screenShake = 18;
+      // A Bomba também quebra até 3 cadeados imediatamente
+      this.unlockNearbyChains([], 3);
 
       const generation = this.boardGeneration;
       let detonated = 0;
       const detonateNext = () => {
         if (generation !== this.boardGeneration || this.gameOverPending) return;
+        this.ensurePlayableState();
         const currentPairs = getAvailablePairs(this.tiles);
         if (currentPairs.length === 0 || detonated >= 3) return;
         const [a, b] = currentPairs[0];
@@ -550,6 +645,7 @@ export class InfiniteMahjong {
 
   showHint() {
     if (this.gameOverPending) return;
+    this.ensurePlayableState();
     const pairs = getAvailablePairs(this.tiles);
     if (pairs.length > 0) {
       if (!this.consumePowerupResource('hint')) return;
@@ -584,7 +680,6 @@ export class InfiniteMahjong {
   nextLevel() {
     this.sound.playWin();
     this.startLevel(this.level + 1);
-    this.showToast(`Fase ${this.level} Gerada!`);
   }
 
   buyPowerupCharge(powerupId) {
@@ -629,7 +724,6 @@ export class InfiniteMahjong {
     if (type === 'theme') {
       this.applyThemeCSS();
     } else if (type === 'symbolSet') {
-      // Atualiza os símbolos da mesa atual mantendo os pares
       this.remapBoardSymbols();
     }
 
@@ -643,6 +737,7 @@ export class InfiniteMahjong {
     const map = {};
     let idx = 0;
     for (const t of this.tiles) {
+      if (t.symbol === WILDCARD_SYMBOL) continue;
       if (!map[t.symbol]) {
         map[t.symbol] = newSymbols[idx % newSymbols.length];
         idx++;
@@ -668,9 +763,6 @@ export class InfiniteMahjong {
       (this.profile.unlockedSkins.length - 1) +
       (this.profile.unlockedSymbolSets.length - 1);
 
-    const classicFour = ['turtle', 'dragon', 'fortress', 'pyramid'];
-    const wonAllClassic = classicFour.every(l => s.layoutsWon.includes(l));
-
     const checks = {
       first_match: s.pairsMatched >= 1,
       combo_5: s.bestCombo >= 5,
@@ -686,8 +778,11 @@ export class InfiniteMahjong {
       collector: totalCosmetics >= 3,
       pairs_100: s.pairsMatched >= 100,
       pairs_500: s.pairsMatched >= 500,
-      architect: wonAllClassic,
-      tycoon: this.profile.totalCoinsEarned >= 1000
+      architect: s.layoutsWon.length >= 5,
+      tycoon: this.profile.totalCoinsEarned >= 1000,
+      chain_breaker: (s.chainsBroken || 0) >= 10,
+      wildcard_pro: (s.wildcardsUsed || 0) >= 6,
+      boss_slayer: (s.bossesDefeated || 0) >= 1
     };
 
     for (const ach of ACHIEVEMENTS) {
@@ -737,7 +832,7 @@ export class InfiniteMahjong {
     t.textContent = msg;
     t.className = isWarn ? 'show warn' : 'show';
     clearTimeout(this.toastTimer);
-    this.toastTimer = setTimeout(() => { t.className = ''; }, 2300);
+    this.toastTimer = setTimeout(() => { t.className = ''; }, 2400);
   }
 
   updateInspectorHUD() {
@@ -746,15 +841,31 @@ export class InfiniteMahjong {
 
     const target = this.hoveredTile || this.selectedTile;
     const layoutObj = BOARD_LAYOUTS[this.currentLayoutId] || BOARD_LAYOUTS.turtle;
+    const modObj = STAGE_MODIFIERS[this.currentModifierId] || STAGE_MODIFIERS.classic;
 
     if (!target || target.removed) {
-      pill.innerHTML = `${layoutObj.icon} <strong>${layoutObj.name}</strong> · Passe o cursor ou toque em uma peça`;
+      pill.innerHTML = `${layoutObj.icon} <strong>${layoutObj.name}</strong> · ${modObj.icon} <strong>${modObj.name}</strong>`;
+      return;
+    }
+
+    const isFree = isTileFree(target, this.tiles);
+    const torchActive = this.torchTimer > 0;
+    if (target.locked) {
+      pill.innerHTML = `⛓️ <strong>Peça Acorrentada</strong> (L${target.z + 1}) · Combine pares livres para quebrar o cadeado!`;
+      return;
+    }
+    if (target.mystery && !isFree && !torchActive) {
+      pill.innerHTML = `❓ <strong>Peça Mistério</strong> (L${target.z + 1}) · Libere os lados/topo ou use a Tocha (T) para revelar`;
+      return;
+    }
+    if (target.symbol === WILDCARD_SYMBOL) {
+      pill.innerHTML = `🃏 <strong>Peça Coringa Dourada!</strong> Combina com qualquer peça livre da mesa`;
       return;
     }
 
     const sameActive = this.tiles.filter(t => !t.removed && t.symbol === target.symbol);
-    const sameFree = sameActive.filter(t => isTileFree(t, this.tiles));
-    const freeStatus = isTileFree(target, this.tiles) ? 'Livre' : 'Bloqueada';
+    const sameFree = sameActive.filter(t => isTileSelectable(t, this.tiles));
+    const freeStatus = isFree ? 'Livre' : 'Bloqueada';
     pill.innerHTML = `${target.symbol} <strong>${freeStatus}</strong> (Camada L${target.z + 1}) · Restam <strong>${sameActive.length}</strong> na mesa (<strong>${sameFree.length}</strong> livres)`;
   }
 
@@ -785,6 +896,7 @@ export class InfiniteMahjong {
   }
 
   updateUI(shouldSave = true) {
+    this.ensurePlayableState();
     const remainingTiles = this.tiles.filter(t => !t.removed).length;
     const pairs = getAvailablePairs(this.tiles);
     const lvlInfo = getPlayerLevelInfo(this.profile.xp);
@@ -812,6 +924,13 @@ export class InfiniteMahjong {
         const s = String(sec % 60).padStart(2, '0');
         timerVal.textContent = `${m}:${s}`;
         timerBox.classList.toggle('urgent', sec <= 20);
+      } else if (this.currentModifierId === 'blitz' && this.blitzRemainingMs > 0) {
+        timerBox.hidden = false;
+        const sec = Math.max(0, Math.ceil(this.blitzRemainingMs / 1000));
+        const m = Math.floor(sec / 60);
+        const s = String(sec % 60).padStart(2, '0');
+        timerVal.textContent = `⚡ ${m}:${s}`;
+        timerBox.classList.toggle('urgent', sec <= 15);
       } else {
         timerBox.hidden = true;
       }
@@ -839,7 +958,6 @@ export class InfiniteMahjong {
 
     if (pairs.length === 0 && remainingTiles > 0 && !this.gameOverPending) {
       if (this.mode === 'zen') {
-        // No modo Zen, reorganiza suavemente sem penalidade
         this.shuffleBoard(false);
         return;
       }
@@ -866,9 +984,11 @@ export class InfiniteMahjong {
     const generation = this.boardGeneration;
     const elapsedSec = Math.max(1, Math.round((performance.now() - this.levelStartTime) / 1000));
 
-    const levelBonus = this.level * 100;
-    const coinsWon = 15 + Math.min(45, this.level * 3) + (this.mode === 'daily' ? 30 : 0);
-    const xpWon = 40 + this.level * 10;
+    const modInfo = STAGE_MODIFIERS[this.currentModifierId] || STAGE_MODIFIERS.classic;
+    const blitzBonusWon = this.currentModifierId === 'blitz' && this.blitzRemainingMs > 0;
+    const levelBonus = this.level * 100 + (this.currentModifierId === 'boss' ? 300 : 0);
+    const coinsWon = 15 + Math.min(45, this.level * 3) + (modInfo.bonusCoins || 0) + (this.mode === 'daily' ? 30 : 0) + (blitzBonusWon ? 25 : 0);
+    const xpWon = 40 + this.level * 10 + (this.currentModifierId === 'boss' ? 60 : 0);
 
     this.score += levelBonus;
     this.awardCoinsAndXP(coinsWon, xpWon);
@@ -880,6 +1000,13 @@ export class InfiniteMahjong {
     }
     if (!s.layoutsWon.includes(this.currentLayoutId)) {
       s.layoutsWon.push(this.currentLayoutId);
+    }
+    if (this.currentModifierId === 'boss') {
+      s.bossesDefeated = (s.bossesDefeated || 0) + 1;
+      this.profile.powerups.bomb = (this.profile.powerups.bomb || 0) + 1;
+    }
+    if (blitzBonusWon) {
+      this.profile.powerups.torch = (this.profile.powerups.torch || 0) + 1;
     }
     if (this.mode === 'zen') {
       s.zenLevelsWon = (s.zenLevelsWon || 0) + 1;
@@ -897,7 +1024,6 @@ export class InfiniteMahjong {
       }
     }
 
-    // A cada 3 fases concluídas, ganha 1 carga de Desfazer e 1 de Dica
     if (s.levelsCompleted % 3 === 0) {
       this.profile.powerups.undo = (this.profile.powerups.undo || 0) + 1;
       this.profile.powerups.hint = (this.profile.powerups.hint || 0) + 1;
@@ -965,7 +1091,6 @@ export class InfiniteMahjong {
     const mx = e.clientX - rect.left;
     const my = e.clientY - rect.top;
 
-    // Botão direito ou botão do meio faz Pan do tabuleiro
     if (e.button === 1 || e.button === 2 || e.shiftKey) {
       this.isPanning = true;
       this.panStartX = mx;
@@ -976,6 +1101,14 @@ export class InfiniteMahjong {
     const tile = this.findTopTileAt(mx, my);
     if (!tile) {
       this.selectedTile = null;
+      this.updateInspectorHUD();
+      return;
+    }
+
+    if (tile.locked) {
+      tile.shake = 10;
+      this.sound.playError();
+      this.showToast('⛓️ Peça acorrentada! Combine pares livres para quebrar o cadeado.', true);
       this.updateInspectorHUD();
       return;
     }
@@ -991,7 +1124,7 @@ export class InfiniteMahjong {
     if (this.selectedTile && this.selectedTile.id === tile.id) {
       this.selectedTile = null;
       this.sound.playClick();
-    } else if (this.selectedTile && this.selectedTile.symbol === tile.symbol) {
+    } else if (this.selectedTile && canTilesMatch(this.selectedTile, tile)) {
       this.executePairMatch(this.selectedTile, tile);
     } else {
       this.selectedTile = tile;
@@ -1007,27 +1140,62 @@ export class InfiniteMahjong {
     this.triggerCombo();
     this.sound.playMatch(this.combo);
 
-    const basePoints = 25 + (Math.max(tileA.z, tileB.z) * 5);
+    const isWildMatch = tileA.symbol === WILDCARD_SYMBOL || tileB.symbol === WILDCARD_SYMBOL;
+    if (isWildMatch) {
+      this.profile.stats.wildcardsUsed = (this.profile.stats.wildcardsUsed || 0) + 1;
+    }
+
+    const hasCoinTile = tileA.bonus === 'coin' || tileB.bonus === 'coin';
+    const basePoints = 25 + (Math.max(tileA.z, tileB.z) * 5) + (isWildMatch ? 20 : 0);
     const earnedPoints = basePoints * this.combo;
-    const earnedCoins = this.combo >= 5 ? 3 : (this.combo >= 2 ? 2 : 1);
+    const earnedCoins = (this.combo >= 5 ? 3 : (this.combo >= 2 ? 2 : 1)) + (hasCoinTile ? 8 : 0);
 
     this.spawnParticles(r1.x + r1.w / 2, r1.y + r1.h / 2);
     this.spawnParticles(r2.x + r2.w / 2, r2.y + r2.h / 2);
     this.spawnRing(r1.x + r1.w / 2, r1.y + r1.h / 2, '#10b981');
     this.spawnRing(r2.x + r2.w / 2, r2.y + r2.h / 2, '#fbbf24');
 
-    const label = `${badgePrefix ? `${badgePrefix} ` : ''}+${earnedPoints}${this.combo > 1 ? ` (x${this.combo}!)` : ''}`;
+    const coinSuffix = hasCoinTile ? ' +🪙8' : '';
+    const label = `${badgePrefix ? `${badgePrefix} ` : ''}+${earnedPoints}${this.combo > 1 ? ` (x${this.combo}!)` : ''}${coinSuffix}`;
     this.spawnFloatingText(
       r2.x + r2.w / 2,
       r2.y,
       label,
-      this.combo > 1 ? '#fcd34d' : '#10b981'
+      hasCoinTile ? '#fbbf24' : (this.combo > 1 ? '#fcd34d' : '#10b981')
     );
 
-    this.undoStack.push({ id1: tileA.id, id2: tileB.id });
     tileA.removed = true;
     tileB.removed = true;
     this.selectedTile = null;
+
+    // Se um Coringa (🃏) foi combinado com uma peça normal S, promove outra peça S a Coringa para manter paridade!
+    let promotedWildcardId = null;
+    let promotedOriginalSymbol = null;
+    if (tileA.symbol !== tileB.symbol) {
+      const normalSym = tileA.symbol === WILDCARD_SYMBOL ? tileB.symbol : tileA.symbol;
+      const partner = this.tiles.find(t => !t.removed && t.symbol === normalSym);
+      if (partner) {
+        promotedWildcardId = partner.id;
+        promotedOriginalSymbol = partner.symbol;
+        partner.symbol = WILDCARD_SYMBOL;
+        partner.special = 'wildcard';
+        const rp = this.getTileScreenRect(partner);
+        this.spawnRing(rp.x + rp.w / 2, rp.y + rp.h / 2, '#fbbf24');
+        this.spawnFloatingText(rp.x + rp.w / 2, rp.y, '🃏 Virou Coringa!', '#fde047');
+      }
+    }
+
+    // Cada combinação quebra 1 cadeado próximo se houver peças acorrentadas
+    const unlockedIds = this.unlockNearbyChains([tileA, tileB], 1);
+    this.revealNewlyFreeMysteries();
+
+    this.undoStack.push({
+      id1: tileA.id,
+      id2: tileB.id,
+      promotedWildcardId,
+      promotedOriginalSymbol,
+      unlockedIds
+    });
 
     this.score += earnedPoints;
     this.profile.stats.pairsMatched = (this.profile.stats.pairsMatched || 0) + 1;
@@ -1093,6 +1261,26 @@ export class InfiniteMahjong {
       }
     }
 
+    // Relógio bônus da fase Relâmpago (Blitz)
+    if (this.currentModifierId === 'blitz' && this.blitzRemainingMs > 0 && this.freezeTimer === 0 && !this.gameOverPending) {
+      this.blitzRemainingMs = Math.max(0, this.blitzRemainingMs - dt);
+      const sec = Math.ceil(this.blitzRemainingMs / 1000);
+      if (sec !== this._lastBlitzSec) {
+        this._lastBlitzSec = sec;
+        const timerVal = document.getElementById('ui-timer');
+        const timerBox = document.getElementById('ui-timer-box');
+        if (timerVal && this.mode !== 'time_attack') {
+          const m = Math.floor(sec / 60);
+          const s = String(sec % 60).padStart(2, '0');
+          timerVal.textContent = `⚡ ${m}:${s}`;
+        }
+        if (timerBox && this.mode !== 'time_attack') {
+          timerBox.classList.toggle('urgent', sec <= 15);
+          if (sec === 0) timerBox.hidden = true;
+        }
+      }
+    }
+
     // Contagem regressiva do modo Contra o Relógio
     if (this.mode === 'time_attack' && !this.gameOverPending && this.tiles.some(t => !t.removed)) {
       this.timeAttackRemainingMs = Math.max(0, this.timeAttackRemainingMs - dt);
@@ -1128,4 +1316,3 @@ export class InfiniteMahjong {
     requestAnimationFrame((t) => this.loop(t));
   }
 }
-

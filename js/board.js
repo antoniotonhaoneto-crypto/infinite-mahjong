@@ -1,8 +1,18 @@
-// Regras de geometria, verificação de peças livres, layouts clássicos e geração determinística solucionável.
+// Regras de geometria, verificação de peças livres, layouts progressivos, modificadores de fase e peças especiais.
 
 import { createPRNG } from './prng.js';
+import { WILDCARD_SYMBOL } from './data.js';
 
-export const CLASSIC_LAYOUT_CYCLE = ['turtle', 'dragon', 'fortress', 'pyramid', 'butterfly'];
+export const CLASSIC_LAYOUT_CYCLE = [
+  'turtle',
+  'dragon',
+  'fortress',
+  'pyramid',
+  'butterfly',
+  'bridges',
+  'arena',
+  'hourglass'
+];
 
 export function resolveLayoutId(layoutPreference = 'auto', level = 1) {
   if (layoutPreference && layoutPreference !== 'auto' && CLASSIC_LAYOUT_CYCLE.includes(layoutPreference)) {
@@ -10,6 +20,26 @@ export function resolveLayoutId(layoutPreference = 'auto', level = 1) {
   }
   const idx = Math.max(0, (level - 1)) % CLASSIC_LAYOUT_CYCLE.length;
   return CLASSIC_LAYOUT_CYCLE[idx];
+}
+
+export function resolveStageModifier(level = 1, mode = 'infinite') {
+  if (mode === 'zen') {
+    return level % 2 === 0 ? 'gold_rush' : 'classic';
+  }
+  if (level % 5 === 0) {
+    return 'boss';
+  }
+  if (mode === 'daily') {
+    const dailyCycle = ['gold_rush', 'mist', 'chains', 'boss'];
+    return dailyCycle[(level - 1) % dailyCycle.length];
+  }
+  if (level === 1) return 'classic';
+
+  const cycle = mode === 'time_attack'
+    ? ['gold_rush', 'mist', 'chains', 'gold_rush']
+    : ['gold_rush', 'mist', 'chains', 'blitz'];
+
+  return cycle[(level - 2) % cycle.length];
 }
 
 export function overlapsXY(a, b) {
@@ -36,12 +66,26 @@ export function isTileFree(target, tileList, ignoreFlag = 'removed') {
   return !(blockedLeft && blockedRight);
 }
 
+export function isTileSelectable(target, tileList) {
+  if (!target || target.removed || target.locked) return false;
+  return isTileFree(target, tileList, 'removed');
+}
+
+export function canTilesMatch(tileA, tileB) {
+  if (!tileA || !tileB || tileA.id === tileB.id) return false;
+  if (tileA.removed || tileB.removed) return false;
+  if (tileA.locked || tileB.locked) return false;
+  if (tileA.symbol === WILDCARD_SYMBOL || tileB.symbol === WILDCARD_SYMBOL) return true;
+  if (tileA.special === 'wildcard' || tileB.special === 'wildcard') return true;
+  return tileA.symbol === tileB.symbol;
+}
+
 export function getAvailablePairs(tileList) {
-  const free = tileList.filter(t => !t.removed && isTileFree(t, tileList));
+  const free = tileList.filter(t => isTileSelectable(t, tileList));
   const pairs = [];
   for (let i = 0; i < free.length; i++) {
     for (let j = i + 1; j < free.length; j++) {
-      if (free[i].symbol === free[j].symbol) {
+      if (canTilesMatch(free[i], free[j])) {
         pairs.push([free[i], free[j]]);
       }
     }
@@ -84,27 +128,36 @@ function generateLayoutCandidates(layoutId, maxLayers, radX, radY) {
         const y = yGrid * 2;
 
         if (layoutId === 'turtle') {
-          // Casco ovalado com pontas laterais na camada 0
           const normDist = (xGrid * xGrid) / (limX * limX + 0.5) + (yGrid * yGrid) / (limY * limY + 0.5);
           if (z > 0 && normDist > 0.85) continue;
           if (z === 0 && normDist > 1.15 && Math.abs(yGrid) > 1) continue;
         } else if (layoutId === 'dragon') {
-          // Onda longitudinal sinuosa
           const waveY = Math.round(Math.sin(xGrid * 0.65) * (limY * 0.55));
           if (Math.abs(yGrid - waveY) > Math.max(1, 3 - Math.floor(z / 2))) continue;
         } else if (layoutId === 'fortress') {
-          // Muralhas externas e torres nos cantos, pátio central mais baixo
           const isOuter = xGrid >= limX - 1 || Math.abs(yGrid) >= limY - 1;
           const isCenterCross = xGrid === 0 || yGrid === 0;
           if (z >= 2 && !isOuter && !isCenterCross) continue;
           if (z === 0 && xGrid === 2 && Math.abs(yGrid) === 2) continue;
         } else if (layoutId === 'pyramid') {
-          // Pirâmide estrita onde cada camada encolhe uniformemente
           if (xGrid > Math.max(1, radX - z) || Math.abs(yGrid) > Math.max(1, radY - z)) continue;
         } else if (layoutId === 'butterfly') {
-          // Asas largas nas laterais e corpo fino no centro
           if (xGrid === 0 && Math.abs(yGrid) > Math.max(1, limY - 2)) continue;
           if (xGrid > 0 && Math.abs(yGrid) > Math.min(limY, xGrid + 1)) continue;
+        } else if (layoutId === 'bridges') {
+          // Duas ilhas (xGrid >= 2) ligadas por duas pontes horizontais (yGrid === -1 ou 1)
+          const isBridge = Math.abs(yGrid) <= 1;
+          if (xGrid === 1 && !isBridge) continue;
+          if (z >= 2 && xGrid < 2) continue;
+        } else if (layoutId === 'arena') {
+          // Anel elíptico com santuário central
+          const rNorm = Math.sqrt((xGrid * xGrid) / (limX * limX + 1) + (yGrid * yGrid) / (limY * limY + 1));
+          if (rNorm > 0.32 && rNorm < 0.62 && z > 0) continue;
+          if (rNorm > 1.08) continue;
+        } else if (layoutId === 'hourglass') {
+          // Larga no topo e base (|yGrid| grande), estreita no meio (yGrid === 0)
+          const allowedX = Math.max(1, Math.abs(yGrid) + 1 - Math.floor(z / 2));
+          if (xGrid > allowedX) continue;
         }
 
         const group = x === 0 ? [{ x: 0, y, z }] : [{ x, y, z }, { x: -x, y, z }];
@@ -125,10 +178,8 @@ export function generateGeometry(totalTiles, maxLayers = 4, seed = 1, layoutId =
 
   const structuredPool = generateLayoutCandidates(layoutId, maxLayers, radX, radY);
 
-  // Embaralha dentro de cada camada z para preservar suporte de baixo para cima
   for (let z = 0; z < maxLayers; z++) {
     const layerItems = prng.shuffle(structuredPool.filter(item => item.z === z));
-    // Ordena levemente pelo centro da forma com ruído determinístico
     layerItems.sort((a, b) => (b.priority - a.priority) + (prng.next() - 0.5) * 3);
 
     for (const item of layerItems) {
@@ -140,7 +191,6 @@ export function generateGeometry(totalTiles, maxLayers = 4, seed = 1, layoutId =
     }
   }
 
-  // Tentativas aleatórias determinísticas extras se ainda faltar espaço
   let attempts = 0;
   while (positions.length < total && attempts < 4000) {
     attempts++;
@@ -159,7 +209,6 @@ export function generateGeometry(totalTiles, maxLayers = 4, seed = 1, layoutId =
     }
   }
 
-  // Fallback determinístico em grade na camada 0 para garantir total exato
   let fallbackX = -radX * 2;
   let fallbackY = -radY * 2;
   while (positions.length < total) {
@@ -182,9 +231,10 @@ export function buildSolvableBoard({
   symbols,
   maxLayers = 4,
   seed = 1,
-  layoutId = 'turtle'
+  layoutId = 'turtle',
+  modifierId = 'classic'
 }) {
-  const prng = createPRNG(`board:${seed}:${layoutId}:${numPairs}`);
+  const prng = createPRNG(`board:${seed}:${layoutId}:${numPairs}:${modifierId}`);
   const positions = generateGeometry(numPairs * 2, maxLayers, seed, layoutId);
 
   const tempTiles = positions.map((p, idx) => ({
@@ -193,11 +243,23 @@ export function buildSolvableBoard({
     y: p.y,
     z: p.z,
     symbol: '',
+    special: null,
+    locked: false,
+    mystery: false,
+    bonus: null,
+    peelStep: 0,
     removed: false,
     shake: 0
   }));
 
   const uniqueSymbols = Math.max(1, symbols.length);
+  const hasWildcards = modifierId === 'gold_rush' || modifierId === 'boss';
+  const hasMystery = modifierId === 'mist' || modifierId === 'boss';
+  const hasChains = modifierId === 'chains' || modifierId === 'boss';
+  const hasCoinBonus = modifierId === 'gold_rush' || modifierId === 'blitz' || modifierId === 'boss';
+
+  const wildcardPairIndex = hasWildcards ? Math.min(numPairs - 1, Math.max(1, Math.floor(numPairs * 0.35))) : -1;
+  const secondWildcardIndex = (modifierId === 'boss' && numPairs >= 10) ? Math.floor(numPairs * 0.7) : -1;
 
   for (let i = 0; i < numPairs; i++) {
     let free = tempTiles.filter(t => !t.removed && isTileFree(t, tempTiles, 'removed'));
@@ -205,16 +267,43 @@ export function buildSolvableBoard({
       free = tempTiles.filter(t => !t.removed);
     }
 
-    // Prioriza remover das camadas mais altas durante a escavação reversa
     free.sort((a, b) => (b.z - a.z) + (prng.next() - 0.5));
 
     const tileA = free[0];
     const remFree = prng.shuffle(free.slice(1));
     const tileB = remFree[0];
 
-    const sym = symbols[i % uniqueSymbols];
+    const isWildPair = (i === wildcardPairIndex || i === secondWildcardIndex);
+    const sym = isWildPair ? WILDCARD_SYMBOL : symbols[i % uniqueSymbols];
+
     tileA.symbol = sym;
     tileB.symbol = sym;
+    tileA.peelStep = i;
+    tileB.peelStep = i;
+
+    if (isWildPair) {
+      tileA.special = 'wildcard';
+      tileB.special = 'wildcard';
+    }
+
+    if (hasCoinBonus && !isWildPair && i % 5 === 2) {
+      tileA.bonus = 'coin';
+    }
+
+    // Peças Mistério aparecem após os primeiros movimentos
+    if (hasMystery && !isWildPair && i >= 2 && i % 3 === 0) {
+      tileA.mystery = true;
+      if (prng.next() > 0.4) tileB.mystery = true;
+    }
+
+    // Peças Acorrentadas só aparecem após pelo menos 3 pares iniciais livres (i >= 3),
+    // garantindo que os primeiros pares da superfície sempre estejam destrancados!
+    if (hasChains && !isWildPair && i >= 3 && i % 4 === 0) {
+      tileA.locked = true;
+      if (modifierId === 'boss' && i >= 6 && prng.next() > 0.5) {
+        tileB.locked = true;
+      }
+    }
 
     tileA.removed = true;
     tileB.removed = true;
@@ -225,6 +314,13 @@ export function buildSolvableBoard({
     removed: false,
     shake: 0
   }));
+
+  // Revela automaticamente qualquer peça Mistério que já comece livre na superfície
+  for (const t of finalTiles) {
+    if (t.mystery && isTileFree(t, finalTiles, 'removed')) {
+      t.mystery = false;
+    }
+  }
 
   return sortTilesForRender(finalTiles);
 }
@@ -240,16 +336,28 @@ export function shuffleRemainingTiles(tiles, seed = Date.now()) {
   }
 
   const symbolsPool = [];
+  const leftovers = [];
   for (const sym of Object.keys(counts)) {
     const pairCount = Math.floor(counts[sym] / 2);
     for (let i = 0; i < pairCount; i++) {
       symbolsPool.push(sym);
     }
+    if (counts[sym] % 2 === 1) {
+      leftovers.push(sym);
+    }
   }
+  while (leftovers.length >= 2) {
+    leftovers.pop();
+    leftovers.pop();
+    symbolsPool.push(WILDCARD_SYMBOL);
+  }
+
   const shuffledPool = prng.shuffle(symbolsPool);
 
   for (const t of remaining) {
     t.tempRemoved = false;
+    // Ao embaralhar, solta correntes remanescentes para destravar o jogo
+    t.locked = false;
   }
 
   const numPairs = Math.floor(remaining.length / 2);
@@ -260,17 +368,21 @@ export function shuffleRemainingTiles(tiles, seed = Date.now()) {
     }
     free = prng.shuffle(free);
     const [a, b] = [free[0], free[1]];
-    const sym = shuffledPool[i] || remaining[0].symbol;
+    const sym = shuffledPool[i] || WILDCARD_SYMBOL;
     a.symbol = sym;
     b.symbol = sym;
+    a.special = sym === WILDCARD_SYMBOL ? 'wildcard' : null;
+    b.special = sym === WILDCARD_SYMBOL ? 'wildcard' : null;
     a.tempRemoved = true;
     b.tempRemoved = true;
   }
 
   for (const t of remaining) {
     delete t.tempRemoved;
+    if (t.mystery && isTileFree(t, tiles, 'removed')) {
+      t.mystery = false;
+    }
   }
 
   return tiles;
 }
-

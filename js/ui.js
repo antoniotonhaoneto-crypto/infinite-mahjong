@@ -1,8 +1,9 @@
-// Gerenciador de interface e janelas modais: Modos e Layouts, Loja de Temas, Conquistas e Estatísticas.
+// Gerenciador de interface e janelas modais: Modos, Layouts, Eventos Dinâmicos, Loja de Temas, Conquistas e Estatísticas.
 
 import {
   GAME_MODES,
   BOARD_LAYOUTS,
+  STAGE_MODIFIERS,
   TABLE_THEMES,
   TILE_SKINS,
   SYMBOL_SETS,
@@ -48,7 +49,7 @@ export class UIManager {
     const today = getTodayKey();
     const dailyDoneToday = g.profile.stats.lastDailyWinDate === today;
 
-    this.openModal('🎮 Modos de Jogo & Layouts', (container) => {
+    this.openModal('🎮 Modos, Formatos & Eventos de Fase', (container) => {
       const modeSection = document.createElement('div');
       modeSection.innerHTML = `<div class="section-title">Escolha o Modo de Jogo</div>`;
       const modeGrid = document.createElement('div');
@@ -82,9 +83,9 @@ export class UIManager {
       modeSection.appendChild(modeGrid);
       container.appendChild(modeSection);
 
-      // Seção de Layouts Clássicos
+      // Seção de Layouts Clássicos e Novos Formatos
       const layoutSection = document.createElement('div');
-      layoutSection.innerHTML = `<div class="section-title">Formação do Tabuleiro (Layout)</div>`;
+      layoutSection.innerHTML = `<div class="section-title">Formação do Tabuleiro (8 Layouts Progressivos)</div>`;
       const layoutGrid = document.createElement('div');
       layoutGrid.className = 'card-grid';
 
@@ -103,7 +104,7 @@ export class UIManager {
           </div>
           <div class="option-card-footer">
             <span style="color: ${isCurrent ? 'var(--accent)' : 'var(--text-muted)'}">
-              ${isCurrent ? 'Selecionado' : 'Aplicar na nova mesa'}
+              ${isCurrent ? 'Selecionado' : 'Aplicar na mesa'}
             </span>
           </div>
         `;
@@ -115,6 +116,35 @@ export class UIManager {
       }
       layoutSection.appendChild(layoutGrid);
       container.appendChild(layoutSection);
+
+      // Seção de Modificadores de Fase e Peças Especiais
+      const modSection = document.createElement('div');
+      modSection.innerHTML = `<div class="section-title">Eventos e Tipos de Jogo por Fase (Automáticos na Progressão)</div>`;
+      const modGrid = document.createElement('div');
+      modGrid.className = 'card-grid';
+
+      for (const mod of Object.values(STAGE_MODIFIERS)) {
+        const card = document.createElement('div');
+        const isCurrentMod = g.currentModifierId === mod.id;
+        card.className = `option-card ${isCurrentMod ? 'selected' : ''}`;
+        card.style.cursor = 'default';
+        card.innerHTML = `
+          <div>
+            <div class="option-card-header">
+              <span class="option-card-title">${mod.icon} ${mod.name}</span>
+            </div>
+            <p class="option-card-desc">${mod.desc}</p>
+          </div>
+          <div class="option-card-footer">
+            <span style="color: var(--gold)">
+              ${mod.bonusCoins > 0 ? `Bônus: +🪙 ${mod.bonusCoins}` : 'Fase Inicial'}
+            </span>
+          </div>
+        `;
+        modGrid.appendChild(card);
+      }
+      modSection.appendChild(modGrid);
+      container.appendChild(modSection);
 
       // Semente Personalizada
       const seedSection = document.createElement('div');
@@ -154,7 +184,6 @@ export class UIManager {
       `;
       container.appendChild(balanceBar);
 
-      // 1. Temas de Mesa
       const themeSec = document.createElement('div');
       themeSec.innerHTML = `<div class="section-title">Temas de Mesa</div>`;
       const themeGrid = document.createElement('div');
@@ -192,7 +221,6 @@ export class UIManager {
       themeSec.appendChild(themeGrid);
       container.appendChild(themeSec);
 
-      // 2. Estilos de Peça
       const skinSec = document.createElement('div');
       skinSec.innerHTML = `<div class="section-title">Estilos de Peça (Skins)</div>`;
       const skinGrid = document.createElement('div');
@@ -230,7 +258,6 @@ export class UIManager {
       skinSec.appendChild(skinGrid);
       container.appendChild(skinSec);
 
-      // 3. Conjuntos de Símbolos
       const symSec = document.createElement('div');
       symSec.innerHTML = `<div class="section-title">Coleções de Símbolos</div>`;
       const symGrid = document.createElement('div');
@@ -266,7 +293,6 @@ export class UIManager {
       symSec.appendChild(symGrid);
       container.appendChild(symSec);
 
-      // 4. Recarga de Power-ups
       const pwrSec = document.createElement('div');
       pwrSec.innerHTML = `<div class="section-title">Recarregar Power-ups Táticos</div>`;
       const pwrGrid = document.createElement('div');
@@ -364,10 +390,10 @@ export class UIManager {
         { label: 'Recorde Contra o Relógio', val: s.highScoreTimeAttack },
         { label: 'Combo Máximo', val: `x${s.bestCombo}` },
         { label: 'Fase Mais Rápida', val: s.fastestWinSeconds ? `${s.fastestWinSeconds}s` : '-' },
-        { label: 'Sequência Diária', val: `${s.dailyStreak} 🔥` },
-        { label: 'Desafios Diários', val: s.dailyWins },
-        { label: 'Fases no Modo Zen', val: s.zenLevelsWon },
-        { label: 'Layouts Clássicos Vencidos', val: `${s.layoutsWon.length}/5` },
+        { label: 'Cadeados Quebrados', val: `${s.chainsBroken || 0} ⛓️` },
+        { label: 'Coringas Usados', val: `${s.wildcardsUsed || 0} 🃏` },
+        { label: 'Fases Chefe Vencidas', val: `${s.bossesDefeated || 0} 🐉` },
+        { label: 'Formatos Vencidos', val: `${s.layoutsWon.length}/8` },
         { label: 'Total de Moedas Ganhas', val: g.profile.totalCoinsEarned }
       ];
 
@@ -384,4 +410,3 @@ export class UIManager {
     });
   }
 }
-

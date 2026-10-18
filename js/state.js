@@ -40,7 +40,10 @@ export function createDefaultProfile() {
       dailyWins: 0,
       dailyStreak: 0,
       lastDailyWinDate: null,
-      layoutsWon: []
+      layoutsWon: [],
+      chainsBroken: 0,
+      wildcardsUsed: 0,
+      bossesDefeated: 0
     }
   };
 }
@@ -55,7 +58,6 @@ export function validateTileArray(tiles) {
     if (typeof t.symbol !== 'string' || t.symbol.length === 0) return false;
   }
   const activeCount = tiles.filter(t => !t.removed).length;
-  // O número de peças ativas sempre deve ser par
   if (activeCount % 2 !== 0) return false;
   return true;
 }
@@ -114,7 +116,6 @@ export function saveModeSession(mode, sessionData, storage = typeof localStorage
       updatedAt: Date.now()
     };
     storage.setItem(`${SESSION_KEY_PREFIX}${mode}`, JSON.stringify(payload));
-    // Mantém compatibilidade com a chave v1 quando no modo infinito
     if (mode === 'infinite') {
       storage.setItem(LEGACY_SAVE_KEY, JSON.stringify(payload));
     }
@@ -139,7 +140,9 @@ export function loadModeSession(mode, storage = typeof localStorage !== 'undefin
       level: Math.floor(state.level),
       score: Number.isFinite(state.score) && state.score >= 0 ? Math.floor(state.score) : 0,
       layoutId: state.layoutId || 'turtle',
+      modifierId: state.modifierId || 'classic',
       timeLeftMs: Number.isFinite(state.timeLeftMs) ? state.timeLeftMs : null,
+      blitzLeftMs: Number.isFinite(state.blitzLeftMs) ? state.blitzLeftMs : null,
       dateKey: state.dateKey || null,
       tiles: state.tiles.map(t => ({
         id: t.id,
@@ -147,6 +150,10 @@ export function loadModeSession(mode, storage = typeof localStorage !== 'undefin
         y: t.y,
         z: t.z,
         symbol: t.symbol,
+        special: t.special || null,
+        locked: Boolean(t.locked),
+        mystery: Boolean(t.mystery),
+        bonus: t.bonus || null,
         removed: Boolean(t.removed),
         shake: 0
       }))
@@ -167,4 +174,3 @@ export function clearModeSession(mode, storage = typeof localStorage !== 'undefi
     // Ignora falha de limpeza
   }
 }
-

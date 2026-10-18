@@ -1,4 +1,4 @@
-const CACHE = 'infinite-mahjong-pwa-v2';
+const CACHE = 'infinite-mahjong-pwa-v3';
 const ASSETS = [
   './',
   './index.html',
