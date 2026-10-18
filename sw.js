@@ -1,14 +1,41 @@
-const CACHE = 'infinite-mahjong-pwa-v1';
-const ASSETS = ['./', './index.html', './manifest.webmanifest', './icons/mahjong.svg'];
+const CACHE = 'infinite-mahjong-pwa-v2';
+const ASSETS = [
+  './',
+  './index.html',
+  './manifest.webmanifest',
+  './icons/mahjong.svg',
+  './css/styles.css',
+  './js/main.js',
+  './js/game.js',
+  './js/ui.js',
+  './js/renderer.js',
+  './js/board.js',
+  './js/state.js',
+  './js/sound.js',
+  './js/data.js',
+  './js/prng.js',
+  './js/pwa.js'
+];
+
 self.addEventListener('install', event => {
-  event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)).then(() => self.skipWaiting()));
+  event.waitUntil(
+    caches.open(CACHE)
+      .then(cache => cache.addAll(ASSETS))
+      .then(() => self.skipWaiting())
+  );
 });
+
 self.addEventListener('activate', event => {
   event.waitUntil(Promise.all([
-    caches.keys().then(keys => Promise.all(keys.filter(key => key.startsWith('infinite-mahjong-pwa-') && key !== CACHE).map(key => caches.delete(key)))),
+    caches.keys().then(keys => Promise.all(
+      keys
+        .filter(key => key.startsWith('infinite-mahjong-pwa-') && key !== CACHE)
+        .map(key => caches.delete(key))
+    )),
     self.clients.claim()
   ]));
 });
+
 self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return;
   const url = new URL(event.request.url);

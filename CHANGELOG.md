@@ -1,18 +1,12 @@
 # Changelog
 
-## 0.1.0 — 2026-10-17
+## [2.0.0] - 2026-10-18
 
-- Importado o jogo HTML original, preservando seu comportamento.
-- Adicionada documentação de jogo, regras, arquitetura e roadmap.
-- Adicionados `.gitignore`, orientações de contribuição e verificação sintática automatizada.
-## Atualização responsiva — 2026-10-17
+### Adicionado
 
-- Redimensionamento e centralização automática do tabuleiro em função da área disponível.
-- Ajuste dos tamanhos das peças e símbolos após mudança de janela ou orientação.
-- Melhorias de layout para telas pequenas e unidades de altura dinâmica.
-
-## Derrota por falta de movimentos — 2026-10-17
-
-- O jogo anuncia derrota quando não há pares livres.
-- Desconta até 50 pontos, sem tornar a pontuação negativa.
-- Gera nova mesa na mesma fase após 2,2 segundos, sem embaralhamento gratuito.
+- Arquitetura modularizada em ES Modules (`js/main.js`, `js/game.js`, `js/board.js`, `js/renderer.js`, `js/ui.js`, `js/state.js`, `js/data.js`, `js/prng.js`, `js/sound.js`, `js/pwa.js`) e folha de estilos `css/styles.css`.
+- 4 modos de jogo: **Modo Infinito**, **Desafio Diário** (semente determinística por data), **Contra o Relógio** e **Modo Zen**.
+- 5 layouts clássicos: **Tartaruga Imperial**, **Dragão Sinuoso**, **Fortaleza Real**, **Pirâmide Escalonada** e **Asas de Borboleta**, além de suporte a sementes personalizadas.
+- Barra tática com 7 power-ups e atalhos de teclado: **Desfazer (`Z`)**, **Dica (`H`)**, **Tocha Raio-X (`T`)**, **Congelar Combo (`F`)**, **Ímã de Par (`M`)**, **Bomba Tripla (`B`)** e **Embaralhar (`S`)**.
+- Sistema de Metagame com Moedas, XP, Patentes de Jogador, **Loja Imperial** (5 temas de mesa, 5 skins de peça e 4 coleções de símbolos), **16 Conquistas** e painel de **Estatísticas**.
+- Inspetor ao vivo de peças no HUD, controles de Zoom/Pan, ondas de choque no Canvas, botão de silenciar áudio e suíte de testes unitários automatizados (`tests/game.test.mjs`).

@@ -1,24 +1,21 @@
-name: Static checks
+name: Static checks and unit tests
 on:
   push:
   pull_request:
 jobs:
-  javascript-syntax:
+  javascript-checks:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Validate inline JavaScript syntax
+      - name: Validate ES Modules syntax
         shell: bash
         run: |
-          node - <<'NODE'
-          const fs = require('node:fs');
-          const vm = require('node:vm');
-          const html = fs.readFileSync('index.html', 'utf8');
-          const scripts = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)];
-          if (scripts.length !== 1) throw new Error(`Expected one inline script, got ${scripts.length}`);
-          new vm.Script(scripts[0][1], { filename: 'index.html:inline.js' });
-          console.log('JavaScript syntax OK');
-          NODE
+          for f in js/*.js sw.js; do
+            node --check "$f"
+          done
+      - name: Run automated unit tests
+        shell: bash
+        run: node --test tests/game.test.mjs

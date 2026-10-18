@@ -1,24 +1,19 @@
 # Roadmap
 
-As propostas abaixo **não estão implementadas**.
+## Concluído na v2.0
 
-## Alta prioridade
+- [x] Separar CSS e JavaScript em módulos ES testáveis (`css/`, `js/`).
+- [x] Testar regras de peças livres, geração, embaralhamento e salvamento (`tests/game.test.mjs`).
+- [x] Garantir tabuleiros solucionáveis e determinísticos com gerador `Mulberry32` (`js/prng.js` e `js/board.js`).
+- [x] Adaptar escala, Zoom e Pan do tabuleiro para telas pequenas e grandes.
+- [x] Validar integralmente dados recuperados de `localStorage` (`js/state.js`).
+- [x] Evitar que callbacks atrasados alterem fases posteriores (`boardGeneration`).
+- [x] Alternar/silenciar sons e salvar preferências no perfil.
+- [x] Sementes reproduzíveis, Desafio Diário e 5 layouts clássicos.
+- [x] Histórico de estatísticas, patentes de XP, 16 conquistas e Loja de Temas/Skins.
+- [x] Power-ups táticos (Desfazer, Tocha Raio-X, Congelar Combo, Ímã de Par e Bomba Tripla) com atalhos de teclado.
 
-- [ ] Separar CSS e JavaScript em módulos testáveis.
-- [ ] Testar regras de peças livres, geração, embaralhamento e salvamento.
-- [ ] Garantir tabuleiros solucionáveis com algoritmo verificável.
-- [x] Adaptar escala e posicionamento do tabuleiro a telas pequenas (ajuste dinâmico inicial; testes visuais ainda pendentes).
-- [ ] Validar integralmente dados recuperados de localStorage.
-- [ ] Evitar callbacks atrasados alterarem fases posteriores.
+## Próximos passos futuros
 
-## Média prioridade
-
-- [ ] Teclado, leitores de tela e acessibilidade.
-- [ ] Alternar/mutar sons e salvar preferências.
-- [ ] Testes end-to-end desktop e mobile.
-- [ ] Sementes reproduzíveis e compartilhamento de tabuleiros.
-- [ ] Histórico de partidas e estatísticas.
-
-## Notas
-
-A contagem de movimentos na interface é de pares disponíveis, não cliques totais. `generateGeometry()` recebe um argumento denominado `seed`, mas a geração ainda usa `Math.random()`.
+- [ ] Placar online opcional para o Desafio Diário.
+- [ ] Criador visual de layouts personalizados pelo jogador.

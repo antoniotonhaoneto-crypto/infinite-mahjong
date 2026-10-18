@@ -11,1068 +11,170 @@
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" type="image/svg+xml" href="./icons/mahjong.svg">
   <link rel="apple-touch-icon" href="./icons/mahjong.svg">
-  <style>
-    :root {
-      --bg-color: #0f172a;
-      --panel-bg: #1e293b;
-      --accent: #10b981;
-      --accent-hover: #059669;
-      --combo: #f59e0b;
-      --danger: #ef4444;
-      --danger-hover: #dc2626;
-      --text: #f8fafc;
-    }
-    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; }
-    body {
-      background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
-      color: var(--text);
-      font-family: system-ui, -apple-system, sans-serif;
-      display: flex;
-      flex-direction: column;
-      height: 100vh;
-      height: 100dvh;
-      overflow: hidden;
-    }
-    header {
-      background: rgba(30, 41, 59, 0.85);
-      backdrop-filter: blur(8px);
-      padding: 12px 24px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 12px;
-      border-bottom: 1px solid rgba(255,255,255,0.1);
-      z-index: 10;
-      max-height: 42dvh;
-      overflow-y: auto;
-    }
-    .stats {
-      display: flex;
-      gap: 12px;
-      font-size: 0.95rem;
-      font-weight: 600;
-      align-items: center;
-      flex-wrap: wrap;
-    }
-    .stat-box {
-      background: rgba(15, 23, 42, 0.6);
-      padding: 6px 14px;
-      border-radius: 8px;
-      border: 1px solid rgba(255,255,255,0.08);
-      transition: transform 0.15s ease, border-color 0.2s ease;
-    }
-    .stat-box span { color: var(--accent); font-weight: 800; margin-left: 4px; }
-    
-    .combo-box {
-      border-color: rgba(245, 158, 11, 0.3);
-    }
-    .combo-box span {
-      color: var(--combo);
-    }
-    .combo-box.active {
-      background: rgba(245, 158, 11, 0.15);
-      border-color: var(--combo);
-      transform: scale(1.06);
-    }
-
-    #combo-bar-wrapper {
-      width: 100%;
-      height: 6px;
-      background: rgba(15, 23, 42, 0.9);
-      position: relative;
-      overflow: hidden;
-      z-index: 10;
-    }
-    #combo-bar-fill {
-      height: 100%;
-      width: 0%;
-      background: linear-gradient(90deg, #10b981, #f59e0b, #ef4444);
-      box-shadow: 0 0 12px rgba(245, 158, 11, 0.8);
-      transition: width 0.05s linear;
-    }
-
-    #save-indicator {
-      font-size: 0.8rem;
-      color: #94a3b8;
-      opacity: 0;
-      transition: opacity 0.3s ease;
-      display: flex;
-      align-items: center;
-      gap: 4px;
-    }
-    #save-indicator.visible { opacity: 1; }
-    .controls { display: flex; gap: 8px; flex-wrap: wrap; }
-    button {
-      background: var(--panel-bg);
-      color: var(--text);
-      border: 1px solid rgba(255,255,255,0.15);
-      padding: 8px 14px;
-      border-radius: 8px;
-      font-weight: 600;
-      font-size: 0.9rem;
-      cursor: pointer;
-      transition: all 0.15s ease;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    [hidden] { display: none !important; }
-    button:hover { background: #334155; transform: translateY(-1px); }
-    button:active { transform: translateY(1px); }
-    button.primary { background: var(--accent); color: #052e16; border-color: transparent; }
-    button.primary:hover { background: var(--accent-hover); color: #fff; }
-    button.danger { background: rgba(239, 68, 68, 0.15); color: #fca5a5; border-color: rgba(239, 68, 68, 0.3); }
-    button.danger:hover { background: var(--danger); color: #fff; }
-    
-    #game-container {
-      flex: 1;
-      min-height: 0;
-      position: relative;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      overflow: hidden;
-    }
-    canvas {
-      display: block;
-      cursor: pointer;
-    }
-    #toast {
-      position: absolute;
-      top: 20px;
-      left: 50%;
-      transform: translateX(-50%) translateY(-100px);
-      background: rgba(16, 185, 129, 0.95);
-      color: #052e16;
-      padding: 12px 28px;
-      border-radius: 999px;
-      font-weight: 800;
-      font-size: 1.1rem;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.4);
-      transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
-      pointer-events: none;
-      z-index: 20;
-    }
-    @media (max-width: 640px) {
-      header { padding: 8px; gap: 8px; }
-      .stats { gap: 5px; font-size: 0.76rem; }
-      .stat-box { padding: 5px 7px; }
-      .controls { gap: 5px; }
-      button { padding: 7px 8px; font-size: 0.75rem; }
-    }
-    #install-overlay { position: fixed; inset: 0; background: rgba(2,6,23,.78); z-index: 100; display: none; align-items: center; justify-content: center; padding: 16px; }
-    #install-overlay.visible { display: flex; }
-    #install-dialog { max-width: 410px; width: 100%; border-radius: 18px; background: #1e293b; border: 1px solid #475569; padding: 24px; box-shadow: 0 20px 55px #0008; }
-    #install-dialog h2 { margin-bottom: 12px; }
-    #install-dialog p { line-height: 1.5; margin-bottom: 14px; color: #e2e8f0; }
-    #install-actions { display: flex; flex-wrap: wrap; gap: 9px; }
-    #install-help { display: none; }
-    #toast.show { transform: translateX(-50%) translateY(0); }
-    #toast.warn { background: #f59e0b; color: #451a03; }
-  </style>
+  <link rel="stylesheet" href="./css/styles.css">
 </head>
 <body>
 
   <header>
-    <div class="stats">
-      <div class="stat-box">Fase <span id="ui-level">1</span></div>
-      <div class="stat-box">Pares <span id="ui-pairs">0</span></div>
-      <div class="stat-box">Movimentos <span id="ui-moves">0</span></div>
-      <div class="stat-box combo-box" id="ui-combo-box">🔥 Combo <span id="ui-combo">x1</span></div>
-      <div class="stat-box">Pontos <span id="ui-score">0</span></div>
-      <div id="save-indicator">💾 Salvo</div>
+    <div class="header-left">
+      <div class="brand-badge" onclick="game.ui.openModesModal()" title="Trocar Modo de Jogo ou Layout da Mesa">
+        <span>🀄</span>
+        <span class="brand-title">Mahjong</span>
+        <span class="mode-pill" id="ui-mode-badge">Infinito</span>
+      </div>
+
+      <div class="stats">
+        <div class="stat-box">Fase <span id="ui-level">1</span></div>
+        <div class="stat-box">Pares <span id="ui-pairs">0</span></div>
+        <div class="stat-box">Livres <span id="ui-moves">0</span></div>
+        <div class="stat-box timer-box" id="ui-timer-box" hidden>⏱️ <span id="ui-timer">2:30</span></div>
+        <div class="stat-box combo-box" id="ui-combo-box">🔥 Combo <span id="ui-combo">x1</span></div>
+        <div class="stat-box">Pontos <span id="ui-score">0</span></div>
+        <div class="stat-box gold-box" onclick="game.ui.openShopModal()" title="Abrir Loja Imperial">
+          🪙 <span id="ui-coins">100</span>
+        </div>
+        <div class="stat-box xp-box" onclick="game.ui.openStatsModal()" title="Ver Perfil e Estatísticas">
+          ⭐ <span id="ui-player-level">Nv.1</span>
+        </div>
+        <div id="save-indicator">💾 Salvo</div>
+      </div>
     </div>
-    <div class="controls">
-      <button id="install-button" class="primary" type="button" hidden>📲 Instalar jogo</button>
-      <button onclick="game.showHint()">💡 Dica (-20)</button>
-      <button onclick="game.shuffleBoard()">🔀 Embaralhar (-50)</button>
-      <button class="primary" onclick="game.nextLevel()">⏭️ Pular Fase</button>
-      <button class="danger" onclick="game.resetProgress()">🔄 Reiniciar</button>
+
+    <div class="controls header-right">
+      <button id="install-button" class="primary" type="button" hidden>📲 Instalar</button>
+      <button type="button" onclick="game.ui.openModesModal()">🎮 Modos</button>
+      <button type="button" onclick="game.ui.openShopModal()">🎨 Loja</button>
+      <button type="button" onclick="game.ui.openAchievementsModal()">🏆 Conquistas</button>
+      <button type="button" onclick="game.ui.openStatsModal()">📊 Perfil</button>
+      <button id="btn-mute" class="icon-btn" type="button" onclick="game.toggleSound()" title="Alternar Som">🔊</button>
+      <button class="primary" type="button" onclick="game.nextLevel()">⏭️ Pular</button>
+      <button class="danger" type="button" onclick="game.resetProgress()">🔄 Reiniciar</button>
     </div>
   </header>
 
-  <div id="install-overlay" role="presentation">
-    <div id="install-dialog" role="dialog" aria-modal="true" aria-labelledby="install-title">
-      <h2 id="install-title">📲 Instale o Mahjong</h2>
-      <p>Jogue direto da tela inicial, inclusive sem internet depois do primeiro carregamento.</p>
-      <p id="install-help"></p>
-      <div id="install-actions">
-        <button id="install-confirm" class="primary" type="button">Instalar agora</button>
-        <button id="install-close" type="button">Agora não</button>
-      </div>
-    </div>
-  </div>
   <div id="combo-bar-wrapper">
     <div id="combo-bar-fill"></div>
   </div>
 
   <div id="game-container">
+    <div id="board-hud-top">
+      <div class="hud-pill" id="hud-inspector">
+        🐢 <strong>Tartaruga Imperial</strong> · Passe o cursor ou toque em uma peça
+      </div>
+      <div class="zoom-controls">
+        <button type="button" onclick="game.adjustZoom(-0.12)" title="Diminuir Zoom">➖</button>
+        <button type="button" onclick="game.resetView()" title="Centralizar Mesa">🎯</button>
+        <button type="button" onclick="game.adjustZoom(0.12)" title="Aumentar Zoom">➕</button>
+      </div>
+    </div>
+
     <div id="toast">Fase Concluída!</div>
     <canvas id="mahjong-canvas"></canvas>
   </div>
 
-<script>
-const STORAGE_KEY = 'infinite_mahjong_save_v1';
+  <!-- Barra Tática de Power-ups -->
+  <nav id="powerup-dock" aria-label="Power-ups e Controles Táticos">
+    <button id="pwr-btn-undo" class="powerup-btn" type="button" onclick="game.usePowerup('undo')" title="Desfazer última combinação (Tecla Z)">
+      <span class="powerup-icon">↩️</span>
+      <span class="powerup-info">
+        <span class="powerup-name">Desfazer <span class="shortcut-hint">Z</span></span>
+        <span class="powerup-sub">Volta 1 par</span>
+      </span>
+      <span id="pwr-badge-undo" class="powerup-badge">3</span>
+    </button>
+
+    <button id="pwr-btn-hint" class="powerup-btn" type="button" onclick="game.usePowerup('hint')" title="Destacar um par disponível (Tecla H)">
+      <span class="powerup-icon">💡</span>
+      <span class="powerup-info">
+        <span class="powerup-name">Dica <span class="shortcut-hint">H</span></span>
+        <span class="powerup-sub">Revela par</span>
+      </span>
+      <span id="pwr-badge-hint" class="powerup-badge">3</span>
+    </button>
+
+    <button id="pwr-btn-torch" class="powerup-btn" type="button" onclick="game.usePowerup('torch')" title="Iluminar todas as peças livres por 12s (Tecla T)">
+      <span class="powerup-icon">🔦</span>
+      <span class="powerup-info">
+        <span class="powerup-name">Tocha <span class="shortcut-hint">T</span></span>
+        <span class="powerup-sub">Raio-X 12s</span>
+      </span>
+      <span id="pwr-badge-torch" class="powerup-badge">2</span>
+    </button>
+
+    <button id="pwr-btn-freeze" class="powerup-btn" type="button" onclick="game.usePowerup('freeze')" title="Congelar barra de Combo por 15s (Tecla F)">
+      <span class="powerup-icon">❄️</span>
+      <span class="powerup-info">
+        <span class="powerup-name">Congelar <span class="shortcut-hint">F</span></span>
+        <span class="powerup-sub">Combo 15s</span>
+      </span>
+      <span id="pwr-badge-freeze" class="powerup-badge">2</span>
+    </button>
+
+    <button id="pwr-btn-magnet" class="powerup-btn" type="button" onclick="game.usePowerup('magnet')" title="Combinar automaticamente um par do topo (Tecla M)">
+      <span class="powerup-icon">🧲</span>
+      <span class="powerup-info">
+        <span class="powerup-name">Ímã <span class="shortcut-hint">M</span></span>
+        <span class="powerup-sub">Atrai 1 par</span>
+      </span>
+      <span id="pwr-badge-magnet" class="powerup-badge">2</span>
+    </button>
+
+    <button id="pwr-btn-bomb" class="powerup-btn" type="button" onclick="game.usePowerup('bomb')" title="Detonar até 3 pares livres em cadeia (Tecla B)">
+      <span class="powerup-icon">💣</span>
+      <span class="powerup-info">
+        <span class="powerup-name">Bomba <span class="shortcut-hint">B</span></span>
+        <span class="powerup-sub">Detona 3 pares</span>
+      </span>
+      <span id="pwr-badge-bomb" class="powerup-badge">1</span>
+    </button>
+
+    <button id="pwr-btn-shuffle" class="powerup-btn" type="button" onclick="game.usePowerup('shuffle')" title="Reorganizar peças restantes (Tecla S)">
+      <span class="powerup-icon">🔀</span>
+      <span class="powerup-info">
+        <span class="powerup-name">Embaralhar <span class="shortcut-hint">S</span></span>
+        <span class="powerup-sub">Nova ordem</span>
+      </span>
+      <span id="pwr-badge-shuffle" class="powerup-badge">2</span>
+    </button>
+  </nav>
+
+  <!-- Banner de Conquista Desbloqueada -->
+  <div id="achievement-banner" role="status" aria-live="polite">
+    <div class="ach-icon" id="ach-banner-icon">🏆</div>
+    <div class="ach-text">
+      <h4>Conquista Desbloqueada!</h4>
+      <p id="ach-banner-title">Primeiro Par</p>
+    </div>
+  </div>
+
+  <!-- Modal Universal (Modos, Loja, Conquistas, Estatísticas) -->
+  <div id="app-modal-overlay" class="modal-overlay" role="presentation">
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="app-modal-title">
+      <div class="modal-header">
+        <h2 id="app-modal-title">Menu</h2>
+        <button id="app-modal-close" type="button">✕ Fechar</button>
+      </div>
+      <div id="app-modal-body" class="modal-body"></div>
+    </div>
+  </div>
+
+  <!-- Modal de Instalação PWA -->
+  <div id="install-overlay" class="modal-overlay" role="presentation">
+    <div class="modal-card" style="max-width: 420px;" role="dialog" aria-modal="true" aria-labelledby="install-title">
+      <div class="modal-header">
+        <h2 id="install-title">📲 Instale o Mahjong</h2>
+      </div>
+      <div class="modal-body">
+        <p style="line-height: 1.5; color: #e2e8f0;">Jogue direto da tela inicial, inclusive sem internet depois do primeiro carregamento.</p>
+        <p id="install-help" style="display: none; color: #cbd5e1;"></p>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <button id="install-confirm" class="primary" type="button">Instalar agora</button>
+          <button id="install-close" type="button">Agora não</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
-const SYMBOLS = [
-  '🐉','🀄','🎋','🏮','🌸','⛩️','🎎','🎏','🍵','🍙',
-  '🦊','🐼','🐯','🦁','🐸','🐢','🦋','🐞','🦀','🐙',
-  '🌙','☀️','⭐','⚡','🔥','💧','❄️','🌪️','🌈','💎',
-  '⚔️','🛡️','👑','🔔','🎲','🎯'
-];
-
-class SoundManager {
-  constructor() {
-    this.ctx = null;
-  }
-
-  init() {
-    if (!this.ctx) {
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      this.ctx = new AudioCtx();
-    }
-    if (this.ctx.state === 'suspended') {
-      this.ctx.resume();
-    }
-  }
-
-  playClick() {
-    this.init();
-    const osc = this.ctx.createOscillator();
-    const gain = this.ctx.createGain();
-
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(440, this.ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(880, this.ctx.currentTime + 0.05);
-
-    gain.gain.setValueAtTime(0.12, this.ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.05);
-
-    osc.connect(gain);
-    gain.connect(this.ctx.destination);
-
-    osc.start();
-    osc.stop(this.ctx.currentTime + 0.05);
-  }
-
-  playError() {
-    this.init();
-    const osc = this.ctx.createOscillator();
-    const gain = this.ctx.createGain();
-
-    osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(140, this.ctx.currentTime);
-    osc.frequency.setValueAtTime(100, this.ctx.currentTime + 0.08);
-
-    gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.18);
-
-    osc.connect(gain);
-    gain.connect(this.ctx.destination);
-
-    osc.start();
-    osc.stop(this.ctx.currentTime + 0.18);
-  }
-
-  playMatch(comboLevel) {
-    this.init();
-    const now = this.ctx.currentTime;
-    
-    const baseFreq = 300 + Math.min(comboLevel * 50, 600);
-    const notes = [baseFreq, baseFreq * 1.25, baseFreq * 1.5];
-
-    notes.forEach((freq, idx) => {
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(freq, now + (idx * 0.04));
-
-      gain.gain.setValueAtTime(0.1, now + (idx * 0.04));
-      gain.gain.exponentialRampToValueAtTime(0.001, now + (idx * 0.04) + 0.12);
-
-      osc.connect(gain);
-      gain.connect(this.ctx.destination);
-
-      osc.start(now + (idx * 0.04));
-      osc.stop(now + (idx * 0.04) + 0.12);
-    });
-  }
-
-  playWin() {
-    this.init();
-    const now = this.ctx.currentTime;
-    const arpeggio = [523.25, 659.25, 783.99, 1046.50];
-
-    arpeggio.forEach((freq, idx) => {
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(freq, now + (idx * 0.08));
-
-      gain.gain.setValueAtTime(0.15, now + (idx * 0.08));
-      gain.gain.exponentialRampToValueAtTime(0.001, now + (idx * 0.08) + 0.3);
-
-      osc.connect(gain);
-      gain.connect(this.ctx.destination);
-
-      osc.start(now + (idx * 0.08));
-      osc.stop(now + (idx * 0.08) + 0.3);
-    });
-  }
-}
-
-class InfiniteMahjong {
-  constructor() {
-    this.canvas = document.getElementById('mahjong-canvas');
-    this.ctx = this.canvas.getContext('2d');
-    this.sound = new SoundManager();
-
-    this.level = 1;
-    this.score = 0;
-    this.tiles = [];
-    this.selectedTile = null;
-    this.hintPair = [];
-    this.particles = [];
-    this.floatingTexts = [];
-
-    this.combo = 0;
-    this.gameOverPending = false;
-    this.boardGeneration = 0;
-    this.comboTimer = 0;
-    this.comboMaxTime = 4500;
-    this.lastFrameTime = performance.now();
-
-    this.tileW = 54;
-    this.tileH = 72;
-    this.depthOffset = 7;
-    this.boardOffsetX = 0;
-    this.boardOffsetY = 0;
-
-    window.addEventListener('resize', () => this.resize());
-    if (window.ResizeObserver) {
-      this.resizeObserver = new ResizeObserver(() => this.resize());
-      this.resizeObserver.observe(document.getElementById('game-container'));
-    }
-    this.canvas.addEventListener('pointerdown', (e) => this.handleClick(e));
-
-    this.resize();
-
-    if (!this.loadGameState()) {
-      this.startLevel(1);
-    } else {
-      this.showToast(`Jogo restaurado na Fase ${this.level}!`);
-    }
-
-    requestAnimationFrame((t) => this.loop(t));
-  }
-
-  resize() {
-    const container = document.getElementById('game-container');
-    const width = Math.max(1, container.clientWidth);
-    const height = Math.max(1, container.clientHeight);
-    if (this.canvas.width !== width) this.canvas.width = width;
-    if (this.canvas.height !== height) this.canvas.height = height;
-    this.fitBoard();
-  }
-
-  // Redimensiona e centraliza o tabuleiro para caber no Canvas.
-  fitBoard() {
-    const active = this.tiles.filter(t => !t.removed);
-    if (!active.length) return;
-    const extents = (w, h, depth) => {
-      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-      for (const t of active) {
-        const x = t.x * w / 2 - w / 2 - t.z * depth;
-        const y = t.y * h / 2 - h / 2 - t.z * depth;
-        minX = Math.min(minX, x);
-        minY = Math.min(minY, y);
-        maxX = Math.max(maxX, x + w);
-        maxY = Math.max(maxY, y + h);
-      }
-      return {minX, minY, maxX, maxY};
-    };
-    const base = extents(54, 72, 7);
-    const scale = Math.max(0.01, Math.min(1.4,
-      Math.max(1, this.canvas.width - 24) / (base.maxX - base.minX),
-      Math.max(1, this.canvas.height - 24) / (base.maxY - base.minY)
-    ));
-    this.tileW = 54 * scale;
-    this.tileH = 72 * scale;
-    this.depthOffset = 7 * scale;
-    const bounds = extents(this.tileW, this.tileH, this.depthOffset);
-    this.boardOffsetX = -(bounds.minX + bounds.maxX) / 2;
-    this.boardOffsetY = -(bounds.minY + bounds.maxY) / 2;
-  }
-
-  triggerCombo() {
-    this.combo = Math.min(10, this.combo + 1);
-    this.comboMaxTime = Math.max(2200, 5000 - (this.combo * 280));
-    this.comboTimer = this.comboMaxTime;
-    this.updateComboUI();
-  }
-
-  resetCombo() {
-    if (this.combo > 0) {
-      this.combo = 0;
-      this.comboTimer = 0;
-      this.updateComboUI();
-    }
-  }
-
-  updateComboUI() {
-    const mult = Math.max(1, this.combo);
-    const comboEl = document.getElementById('ui-combo');
-    const boxEl = document.getElementById('ui-combo-box');
-
-    comboEl.textContent = `x${mult}`;
-    if (this.combo > 1) {
-      boxEl.classList.add('active');
-    } else {
-      boxEl.classList.remove('active');
-    }
-  }
-
-  saveGameState() {
-    try {
-      const state = {
-        level: this.level,
-        score: this.score,
-        tiles: this.tiles.map(t => ({
-          id: t.id,
-          x: t.x,
-          y: t.y,
-          z: t.z,
-          symbol: t.symbol,
-          removed: t.removed
-        })),
-        updatedAt: Date.now()
-      };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-      this.flashSaveIndicator();
-    } catch (err) {
-      console.warn('Não foi possível salvar no LocalStorage:', err);
-    }
-  }
-
-  loadGameState() {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return false;
-
-      const state = JSON.parse(raw);
-      if (!state || typeof state.level !== 'number' || !Array.isArray(state.tiles)) {
-        return false;
-      }
-
-      const activeCount = state.tiles.filter(t => !t.removed).length;
-      if (activeCount === 0) {
-        this.score = state.score || 0;
-        this.startLevel(state.level + 1);
-        return true;
-      }
-
-      this.level = state.level;
-      this.score = state.score || 0;
-      this.tiles = state.tiles.map(t => ({
-        id: t.id,
-        x: t.x,
-        y: t.y,
-        z: t.z,
-        symbol: t.symbol,
-        removed: Boolean(t.removed),
-        shake: 0
-      }));
-
-      this.sortTilesForRender();
-      this.fitBoard();
-      this.updateUI(false);
-      return true;
-    } catch (err) {
-      console.warn('Erro ao ler save do LocalStorage:', err);
-      return false;
-    }
-  }
-
-  resetProgress() {
-    if (confirm('Deseja realmente apagar todo o progresso salvo e voltar para a Fase 1?')) {
-      localStorage.removeItem(STORAGE_KEY);
-      this.score = 0;
-      this.resetCombo();
-      this.startLevel(1);
-      this.sound.playError();
-      this.showToast('Progresso reiniciado!', true);
-    }
-  }
-
-  flashSaveIndicator() {
-    const el = document.getElementById('save-indicator');
-    el.classList.add('visible');
-    clearTimeout(this.saveIndicatorTimer);
-    this.saveIndicatorTimer = setTimeout(() => {
-      el.classList.remove('visible');
-    }, 1000);
-  }
-
-  overlapsXY(a, b) {
-    return Math.abs(a.x - b.x) < 2 && Math.abs(a.y - b.y) < 2;
-  }
-
-  isTileFree(target, tileList = this.tiles) {
-    if (target.removed) return false;
-    let blockedLeft = false;
-    let blockedRight = false;
-
-    for (const other of tileList) {
-      if (other.id === target.id || other.removed) continue;
-
-      if (other.z === target.z + 1 && this.overlapsXY(target, other)) {
-        return false;
-      }
-
-      if (other.z === target.z && Math.abs(target.y - other.y) < 2) {
-        if (other.x === target.x - 2) blockedLeft = true;
-        if (other.x === target.x + 2) blockedRight = true;
-      }
-    }
-    return !(blockedLeft && blockedRight);
-  }
-
-  startLevel(lvl) {
-    this.boardGeneration++;
-    this.gameOverPending = false;
-    this.level = lvl;
-    this.selectedTile = null;
-    this.hintPair = [];
-    this.resetCombo();
-
-    const numPairs = Math.min(72, 6 + Math.floor(lvl * 2));
-    const uniqueSymbols = Math.min(SYMBOLS.length, 4 + Math.floor(lvl * 0.8));
-    const maxLayers = Math.min(6, 2 + Math.floor(lvl / 3));
-
-    const positions = this.generateGeometry(numPairs * 2, maxLayers, lvl);
-
-    let tempTiles = positions.map((p, idx) => ({
-      id: idx,
-      x: p.x,
-      y: p.y,
-      z: p.z,
-      symbol: '',
-      removed: false,
-      shake: 0
-    }));
-
-    for (let i = 0; i < numPairs; i++) {
-      let free = tempTiles.filter(t => !t.removed && this.isTileFree(t, tempTiles));
-      if (free.length < 2) {
-        free = tempTiles.filter(t => !t.removed);
-      }
-
-      free.sort((a, b) => (b.z - a.z) + (Math.random() - 0.5));
-
-      const tileA = free[0];
-      const remFree = free.slice(1);
-      remFree.sort(() => Math.random() - 0.5);
-      const tileB = remFree[0];
-
-      const sym = SYMBOLS[i % uniqueSymbols];
-      tileA.symbol = sym;
-      tileB.symbol = sym;
-
-      tileA.removed = true;
-      tileB.removed = true;
-    }
-
-    this.tiles = tempTiles.map(t => ({ ...t, removed: false }));
-    this.sortTilesForRender();
-    this.fitBoard();
-    this.updateUI(true);
-  }
-
-  generateGeometry(totalTiles, maxLayers, seed) {
-    const positions = [];
-    const patternType = seed % 4;
-    const radX = Math.min(10, 4 + Math.floor(seed / 3));
-    const radY = Math.min(6, 3 + Math.floor(seed / 4));
-
-    let attempts = 0;
-    while (positions.length < totalTiles && attempts < 6000) {
-      attempts++;
-      const z = Math.floor(Math.random() * maxLayers);
-      const shrink = Math.floor(z / 1.5);
-      const maxX = Math.max(2, radX - shrink);
-      const maxY = Math.max(2, radY - shrink);
-
-      let x = Math.floor(Math.random() * maxX) * 2;
-      let y = (Math.floor(Math.random() * (maxY * 2 + 1)) - maxY) * 2;
-
-      if (patternType === 1 && z === 0 && Math.abs(x) < 2 && Math.abs(y) < 2) continue;
-      if (patternType === 2 && Math.abs(x) > 2 && Math.abs(y) > 2) continue;
-      if (patternType === 3 && x === 0 && z > 0) x = 2;
-
-      const candidates = x === 0 ? [{ x: 0, y, z }] : [{ x, y, z }, { x: -x, y, z }];
-
-      if (positions.length + candidates.length > totalTiles) continue;
-
-      let validGroup = true;
-      for (const c of candidates) {
-        const exists = positions.some(p => p.x === c.x && p.y === c.y && p.z === c.z);
-        const overlapSameZ = positions.some(p => p.z === c.z && Math.abs(p.x - c.x) < 2 && Math.abs(p.y - c.y) < 2);
-        const hasSupport = c.z === 0 || positions.some(
-          p => p.z === c.z - 1 && Math.abs(p.x - c.x) < 2 && Math.abs(p.y - c.y) < 2
-        );
-        if (exists || overlapSameZ || !hasSupport) {
-          validGroup = false;
-          break;
-        }
-      }
-
-      if (validGroup) {
-        positions.push(...candidates);
-      }
-    }
-
-    let fallbackX = -radX * 2;
-    let fallbackY = -radY * 2;
-    while (positions.length < totalTiles) {
-      const exists = positions.some(p => p.x === fallbackX && p.y === fallbackY && p.z === 0);
-      if (!exists) {
-        positions.push({ x: fallbackX, y: fallbackY, z: 0 });
-      }
-      fallbackX += 2;
-      if (fallbackX > radX * 2) {
-        fallbackX = -radX * 2;
-        fallbackY += 2;
-      }
-    }
-
-    return positions;
-  }
-
-  sortTilesForRender() {
-    this.tiles.sort((a, b) => {
-      if (a.z !== b.z) return a.z - b.z;
-      if (a.y !== b.y) return a.y - b.y;
-      return a.x - b.x;
-    });
-  }
-
-  getAvailablePairs() {
-    const free = this.tiles.filter(t => !t.removed && this.isTileFree(t));
-    const pairs = [];
-    for (let i = 0; i < free.length; i++) {
-      for (let j = i + 1; j < free.length; j++) {
-        if (free[i].symbol === free[j].symbol) {
-          pairs.push([free[i], free[j]]);
-        }
-      }
-    }
-    return pairs;
-  }
-
-  shuffleBoard(isPenalty = true) {
-    if (this.gameOverPending) return;
-    const remaining = this.tiles.filter(t => !t.removed);
-    if (remaining.length === 0) return;
-
-    if (isPenalty) {
-      this.score = Math.max(0, this.score - 50);
-      this.resetCombo();
-      this.sound.playError();
-    }
-    this.selectedTile = null;
-    this.hintPair = [];
-
-    const symbolsPool = [];
-    const counts = {};
-    remaining.forEach(t => counts[t.symbol] = (counts[t.symbol] || 0) + 1);
-    Object.keys(counts).forEach(sym => {
-      for (let i = 0; i < counts[sym] / 2; i++) symbolsPool.push(sym);
-    });
-
-    remaining.forEach(t => t.tempRemoved = false);
-    const numPairs = remaining.length / 2;
-
-    for (let i = 0; i < numPairs; i++) {
-      let free = remaining.filter(t => !t.tempRemoved && this.isTileFreeCustom(t, remaining));
-      if (free.length < 2) free = remaining.filter(t => !t.tempRemoved);
-
-      free.sort(() => Math.random() - 0.5);
-      const [a, b] = [free[0], free[1]];
-      const sym = symbolsPool[i];
-
-      a.symbol = sym;
-      b.symbol = sym;
-      a.tempRemoved = true;
-      b.tempRemoved = true;
-    }
-
-    this.showToast('Tabuleiro Embaralhado!', true);
-    this.updateUI(true);
-  }
-
-  isTileFreeCustom(target, list) {
-    let blockedLeft = false, blockedRight = false;
-    for (const other of list) {
-      if (other.id === target.id || other.tempRemoved) continue;
-      if (other.z === target.z + 1 && this.overlapsXY(target, other)) return false;
-      if (other.z === target.z && Math.abs(target.y - other.y) < 2) {
-        if (other.x === target.x - 2) blockedLeft = true;
-        if (other.x === target.x + 2) blockedRight = true;
-      }
-    }
-    return !(blockedLeft && blockedRight);
-  }
-
-  showHint() {
-    if (this.gameOverPending) return;
-    const pairs = this.getAvailablePairs();
-    if (pairs.length > 0) {
-      this.score = Math.max(0, this.score - 20);
-      this.hintPair = pairs[Math.floor(Math.random() * pairs.length)];
-      this.sound.playClick();
-      this.updateUI(true);
-    } else {
-      this.shuffleBoard(false);
-    }
-  }
-
-  nextLevel() {
-    this.sound.playWin();
-    this.startLevel(this.level + 1);
-    this.showToast(`Fase ${this.level} Gerada!`);
-  }
-
-  showToast(msg, isWarn = false) {
-    const t = document.getElementById('toast');
-    t.textContent = msg;
-    t.className = isWarn ? 'show warn' : 'show';
-    clearTimeout(this.toastTimer);
-    this.toastTimer = setTimeout(() => t.className = '', 2200);
-  }
-
-  updateUI(shouldSave = true) {
-    const remainingTiles = this.tiles.filter(t => !t.removed).length;
-    const pairs = this.getAvailablePairs();
-
-    document.getElementById('ui-level').textContent = this.level;
-    document.getElementById('ui-pairs').textContent = remainingTiles / 2;
-    document.getElementById('ui-moves').textContent = pairs.length;
-    document.getElementById('ui-score').textContent = this.score;
-    this.updateComboUI();
-
-    if (shouldSave) {
-      this.saveGameState();
-    }
-
-    if (remainingTiles === 0) {
-      const levelBonus = this.level * 100;
-      this.score += levelBonus;
-      this.resetCombo();
-      this.saveGameState();
-      this.sound.playWin();
-      this.showToast(`🎉 Fase ${this.level} Concluída! +${levelBonus} pts`);
-      setTimeout(() => this.startLevel(this.level + 1), 1500);
-      return;
-    }
-
-    if (pairs.length === 0 && remainingTiles > 0 && !this.gameOverPending) {
-      this.gameOverPending = true;
-      const generation = this.boardGeneration;
-      const penalty = 50;
-      const lost = Math.min(this.score, penalty);
-      this.score -= lost;
-      this.resetCombo();
-      this.sound.playError();
-      document.getElementById('ui-score').textContent = this.score;
-      this.saveGameState();
-      this.showToast(`💀 Você perdeu! Sem movimentos. -${lost} pontos. Nova mesa!`, true);
-
-      setTimeout(() => {
-        if (generation !== this.boardGeneration || !this.gameOverPending) return;
-        // Retoma a mesma fase com uma mesa inteiramente nova.
-        this.startLevel(this.level);
-      }, 2200);
-    }
-  }
-
-  getTileScreenRect(tile) {
-    const cx = this.canvas.width / 2;
-    const cy = this.canvas.height / 2;
-    const sx = cx + (tile.x * (this.tileW / 2)) - (this.tileW / 2) - (tile.z * this.depthOffset);
-    const sy = cy + (tile.y * (this.tileH / 2)) - (this.tileH / 2) - (tile.z * this.depthOffset);
-    return { x: sx + this.boardOffsetX, y: sy + this.boardOffsetY, w: this.tileW, h: this.tileH };
-  }
-
-  handleClick(e) {
-    if (this.gameOverPending) return;
-    const rect = this.canvas.getBoundingClientRect();
-    const mx = e.clientX - rect.left;
-    const my = e.clientY - rect.top;
-
-    for (let i = this.tiles.length - 1; i >= 0; i--) {
-      const tile = this.tiles[i];
-      if (tile.removed) continue;
-
-      const r = this.getTileScreenRect(tile);
-      if (mx >= r.x && mx <= r.x + r.w && my >= r.y && my <= r.y + r.h) {
-        if (!this.isTileFree(tile)) {
-          tile.shake = 10;
-          this.sound.playError();
-          return;
-        }
-
-        this.hintPair = [];
-        if (this.selectedTile && this.selectedTile.id === tile.id) {
-          this.selectedTile = null;
-          this.sound.playClick();
-        } else if (this.selectedTile && this.selectedTile.symbol === tile.symbol) {
-          const r1 = this.getTileScreenRect(this.selectedTile);
-          const r2 = this.getTileScreenRect(tile);
-
-          this.triggerCombo();
-          this.sound.playMatch(this.combo);
-
-          const basePoints = 25 + (Math.max(this.selectedTile.z, tile.z) * 5);
-          const earnedPoints = basePoints * this.combo;
-
-          this.spawnParticles(r1.x + r1.w / 2, r1.y + r1.h / 2);
-          this.spawnParticles(r2.x + r2.w / 2, r2.y + r2.h / 2);
-          this.spawnFloatingText(
-            r2.x + r2.w / 2,
-            r2.y,
-            `+${earnedPoints}${this.combo > 1 ? ` (x${this.combo}!)` : ''}`,
-            this.combo > 1 ? '#fcd34d' : '#10b981'
-          );
-
-          this.selectedTile.removed = true;
-          tile.removed = true;
-          this.selectedTile = null;
-          this.score += earnedPoints;
-          this.updateUI(true);
-        } else {
-          this.selectedTile = tile;
-          this.sound.playClick();
-        }
-        return;
-      }
-    }
-    this.selectedTile = null;
-  }
-
-  spawnParticles(x, y) {
-    for (let i = 0; i < 14; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const speed = 2 + Math.random() * 5;
-      this.particles.push({
-        x, y,
-        vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed,
-        life: 1.0,
-        color: Math.random() > 0.5 ? '#10b981' : '#fcd34d'
-      });
-    }
-  }
-
-  spawnFloatingText(x, y, text, color) {
-    this.floatingTexts.push({
-      x, y,
-      text,
-      color,
-      life: 1.0
-    });
-  }
-
-  drawRoundedRect(x, y, w, h, r) {
-    this.ctx.beginPath();
-    this.ctx.roundRect(x, y, w, h, r);
-    this.ctx.closePath();
-  }
-
-  loop(now = performance.now()) {
-    const dt = now - this.lastFrameTime;
-    this.lastFrameTime = now;
-
-    if (this.comboTimer > 0) {
-      this.comboTimer = Math.max(0, this.comboTimer - dt);
-      const pct = (this.comboTimer / this.comboMaxTime) * 100;
-      document.getElementById('combo-bar-fill').style.width = `${pct}%`;
-
-      if (this.comboTimer === 0) {
-        this.resetCombo();
-      }
-    }
-
-    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-
-    for (const tile of this.tiles) {
-      if (tile.removed) continue;
-
-      const isFree = this.isTileFree(tile);
-      const isSelected = this.selectedTile && this.selectedTile.id === tile.id;
-      const isHinted = this.hintPair.some(h => h.id === tile.id);
-
-      let shakeOffset = 0;
-      if (tile.shake > 0) {
-        shakeOffset = Math.sin(tile.shake * 1.5) * 4;
-        tile.shake--;
-      }
-
-      const r = this.getTileScreenRect(tile);
-      const x = r.x + shakeOffset;
-      const y = r.y;
-
-      this.ctx.fillStyle = 'rgba(0, 0, 0, 0.38)';
-      this.drawRoundedRect(x + 8, y + 10, r.w, r.h, 8);
-      this.ctx.fill();
-
-      this.ctx.fillStyle = isSelected ? '#059669' : '#0f766e';
-      this.drawRoundedRect(x + 4, y + 5, r.w, r.h, 8);
-      this.ctx.fill();
-
-      if (isSelected) {
-        this.ctx.fillStyle = '#fef08a';
-      } else if (isHinted) {
-        this.ctx.fillStyle = '#a7f3d0';
-      } else if (isFree) {
-        this.ctx.fillStyle = '#fffbeb';
-      } else {
-        this.ctx.fillStyle = '#94a3b8';
-      }
-
-      this.drawRoundedRect(x, y, r.w, r.h, 8);
-      this.ctx.fill();
-
-      this.ctx.lineWidth = isSelected || isHinted ? 3 : 1.5;
-      this.ctx.strokeStyle = isSelected ? '#eab308' : (isHinted ? '#10b981' : '#cbd5e1');
-      this.ctx.stroke();
-
-      this.ctx.font = `${Math.max(5, 30 * this.tileW / 54)}px "Apple Color Emoji", "Segoe UI Emoji", sans-serif`;
-      this.ctx.textAlign = 'center';
-      this.ctx.textBaseline = 'middle';
-      this.ctx.globalAlpha = isFree ? 1.0 : 0.45;
-      this.ctx.fillText(tile.symbol, x + r.w / 2, y + r.h / 2 + 2);
-      this.ctx.globalAlpha = 1.0;
-
-      if (tile.z > 0) {
-        this.ctx.fillStyle = isFree ? '#64748b' : '#475569';
-        this.ctx.font = `bold ${Math.max(5, 10 * this.tileW / 54)}px sans-serif`;
-        this.ctx.fillText(`L${tile.z + 1}`, x + r.w - 12, y + 12);
-      }
-    }
-
-    for (let i = this.particles.length - 1; i >= 0; i--) {
-      const p = this.particles[i];
-      p.x += p.vx;
-      p.y += p.vy;
-      p.life -= 0.04;
-      if (p.life <= 0) {
-        this.particles.splice(i, 1);
-        continue;
-      }
-      this.ctx.fillStyle = p.color;
-      this.ctx.globalAlpha = p.life;
-      this.ctx.beginPath();
-      this.ctx.arc(p.x, p.y, 4 * p.life, 0, Math.PI * 2);
-      this.ctx.fill();
-      this.ctx.globalAlpha = 1.0;
-    }
-
-    for (let i = this.floatingTexts.length - 1; i >= 0; i--) {
-      const ft = this.floatingTexts[i];
-      ft.y -= 1.2;
-      ft.life -= 0.025;
-      if (ft.life <= 0) {
-        this.floatingTexts.splice(i, 1);
-        continue;
-      }
-      this.ctx.save();
-      this.ctx.font = '800 18px system-ui, sans-serif';
-      this.ctx.textAlign = 'center';
-      this.ctx.globalAlpha = ft.life;
-      this.ctx.shadowColor = 'rgba(0,0,0,0.8)';
-      this.ctx.shadowBlur = 6;
-      this.ctx.fillStyle = ft.color;
-      this.ctx.fillText(ft.text, ft.x, ft.y);
-      this.ctx.restore();
-    }
-
-    requestAnimationFrame((t) => this.loop(t));
-  }
-}
-
-const game = new InfiniteMahjong();
-
-// A instalação nativa só pode ser disparada após o navegador emitir beforeinstallprompt.
-// No iOS/Safari, o usuário deve usar o menu Compartilhar > Adicionar à Tela de Início.
-(() => {
-  let deferredPrompt = null;
-  const overlay = document.getElementById('install-overlay');
-  const openButton = document.getElementById('install-button');
-  const confirmButton = document.getElementById('install-confirm');
-  const closeButton = document.getElementById('install-close');
-  const help = document.getElementById('install-help');
-  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  const installed = () => window.matchMedia('(display-mode: standalone)').matches ||
-    navigator.standalone === true;
-  const dismissed = () => sessionStorage.getItem('mahjong-install-dismissed') === '1';
-
-  function openDialog() {
-    if (installed()) return;
-    overlay.classList.add('visible');
-    if (deferredPrompt) {
-      help.style.display = 'none';
-      confirmButton.hidden = false;
-    } else {
-      help.style.display = 'block';
-      confirmButton.hidden = true;
-      help.textContent = isIOS
-        ? 'No Safari, toque em Compartilhar e escolha Adicionar à Tela de Início.'
-        : 'Abra o menu do navegador e escolha Instalar aplicativo ou Adicionar à tela inicial. A instalação direta depende do navegador.';
-    }
-  }
-  function hideDialog() {
-    overlay.classList.remove('visible');
-    sessionStorage.setItem('mahjong-install-dismissed', '1');
-  }
-  openButton.addEventListener('click', openDialog);
-  closeButton.addEventListener('click', hideDialog);
-  confirmButton.addEventListener('click', async () => {
-    if (!deferredPrompt) return;
-    const prompt = deferredPrompt;
-    deferredPrompt = null;
-    hideDialog();
-    await prompt.prompt();
-    try { await prompt.userChoice; } catch (error) { console.warn(error); }
-  });
-  window.addEventListener('beforeinstallprompt', event => {
-    event.preventDefault();
-    deferredPrompt = event;
-    openButton.hidden = false;
-    if (!dismissed() && !installed()) openDialog();
-  });
-  window.addEventListener('appinstalled', () => {
-    deferredPrompt = null;
-    overlay.classList.remove('visible');
-    openButton.hidden = true;
-  });
-  if (!installed()) {
-    openButton.hidden = false;
-    if (isIOS && !dismissed()) {
-      window.addEventListener('load', () => setTimeout(openDialog, 1200), { once: true });
-    }
-  }
-})();
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js').catch(error => {
-      console.warn('Offline indisponível: não foi possível registrar o Service Worker.', error);
-    });
-  });
-}
-</script>
+  <script type="module" src="./js/main.js"></script>
 </body>
 </html>
